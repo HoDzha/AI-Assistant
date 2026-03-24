@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FreelanceAI — Менеджер задач</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Unbounded:wght@300;400;700;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0a0a0f;
+      --surface:  #12121a;
+      --border:   #22223a;
+      --accent:   #7c6dfa;
+      --accent2:  #fa6d9a;
+      --text:     #e8e8f0;
+      --muted:    #5a5a7a;
+      --success:  #4dffa0;
+      --warn:     #ffd04d;
+      --danger:   #ff4d6d;
+      --radius:   12px;
+      --mono:     'DM Mono', monospace;
+      --display:  'Unbounded', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── GRID NOISE BACKGROUND ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(124,109,250,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,109,250,.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    /* ── GLOW ORBS ── */
+    .orb {
+      position: fixed; border-radius: 50%;
+      filter: blur(100px); opacity: .18; pointer-events: none; z-index: 0;
+    }
+    .orb-1 { width: 500px; height: 500px; background: var(--accent);  top: -150px; left: -150px; }
+    .orb-2 { width: 400px; height: 400px; background: var(--accent2); bottom: -100px; right: -100px; }
+
+    /* ── LAYOUT ── */
+    .container {
+      position: relative; z-index: 1;
+      max-width: 860px; margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* ── HEADER ── */
+    header { margin-bottom: 56px; }
+
+    .badge {
+      display: inline-block;
+      font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+      color: var(--accent); border: 1px solid var(--accent);
+      padding: 4px 12px; border-radius: 999px; margin-bottom: 20px;
+      text-transform: uppercase;
+      animation: fadeUp .6s ease both;
+    }
+
+    h1 {
+      font-family: var(--display); font-weight: 900;
+      font-size: clamp(28px, 5vw, 52px); line-height: 1.05;
+      letter-spacing: -.03em;
+      animation: fadeUp .6s .1s ease both;
+    }
+
+    h1 span { color: var(--accent); }
+
+    .subtitle {
+      margin-top: 14px; font-size: 13px;
+      color: var(--muted); line-height: 1.7;
+      max-width: 480px;
+      animation: fadeUp .6s .2s ease both;
+    }
+
+    /* ── SECTION TITLES ── */
+    .section-label {
+      font-family: var(--mono); font-size: 10px; letter-spacing: .2em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 16px; display: flex; align-items: center; gap: 10px;
+    }
+    .section-label::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 16px;
+      transition: border-color .2s;
+    }
+    .card:hover { border-color: #33335a; }
+
+    /* ── FORM GRID ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .form-grid .span2 { grid-column: span 2; }
+
+    @media (max-width: 600px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .form-grid .span2 { grid-column: span 1; }
+    }
+
+    /* ── INPUTS ── */
+    label {
+      display: block; font-size: 11px; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--mono); font-size: 13px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      appearance: none;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(124,109,250,.15);
+    }
+
+    textarea { resize: vertical; min-height: 72px; }
+
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235a5a7a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 36px;
+      cursor: pointer;
+    }
+
+    /* ── TAGS INPUT ── */
+    .tags-wrap {
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 10px;
+      min-height: 42px; cursor: text;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .tags-wrap:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(124,109,250,.15);
+    }
+    .tag-chip {
+      display: flex; align-items: center; gap: 5px;
+      background: rgba(124,109,250,.15); border: 1px solid rgba(124,109,250,.3);
+      color: var(--accent); font-size: 11px; letter-spacing: .05em;
+      border-radius: 6px; padding: 2px 8px;
+    }
+    .tag-chip button {
+      background: none; border: none; color: var(--accent);
+      cursor: pointer; font-size: 13px; line-height: 1; padding: 0;
+    }
+    #tag-input {
+      border: none; background: transparent; flex: 1;
+      min-width: 80px; outline: none; font-size: 13px;
+      color: var(--text); font-family: var(--mono);
+      padding: 0; box-shadow: none;
+    }
+    #tag-input:focus { box-shadow: none; border: none; }
+
+    /* ── IMPORTANCE PILLS ── */
+    .pill-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .pill {
+      font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
+      text-transform: uppercase; padding: 6px 14px;
+      border-radius: 999px; cursor: pointer;
+      border: 1px solid var(--border);
+      color: var(--muted); background: transparent;
+      transition: all .18s;
+    }
+    .pill:hover { border-color: var(--muted); color: var(--text); }
+    .pill.active[data-val="low"]      { background: rgba(77,255,160,.12); border-color: var(--success); color: var(--success); }
+    .pill.active[data-val="medium"]   { background: rgba(255,208,77,.12); border-color: var(--warn);    color: var(--warn); }
+    .pill.active[data-val="high"]     { background: rgba(124,109,250,.18); border-color: var(--accent);  color: var(--accent); }
+    .pill.active[data-val="critical"] { background: rgba(255,77,109,.15); border-color: var(--danger);  color: var(--danger); }
+
+    /* ── TASK LIST ── */
+    #task-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+
+    .task-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 12px;
+      animation: slideIn .3s ease both;
+    }
+    .task-item[data-imp="critical"] { border-left-color: var(--danger); }
+    .task-item[data-imp="high"]     { border-left-color: var(--accent); }
+    .task-item[data-imp="medium"]   { border-left-color: var(--warn); }
+    .task-item[data-imp="low"]      { border-left-color: var(--success); }
+
+    .task-meta { flex: 1; }
+    .task-title { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+    .task-details { font-size: 11px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 10px; }
+    .task-details span { display: flex; align-items: center; gap: 4px; }
+
+    .imp-badge {
+      font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+      padding: 2px 8px; border-radius: 4px; font-weight: 500;
+    }
+    .imp-critical { background: rgba(255,77,109,.15);  color: var(--danger);  }
+    .imp-high     { background: rgba(124,109,250,.15); color: var(--accent);  }
+    .imp-medium   { background: rgba(255,208,77,.12);  color: var(--warn);    }
+    .imp-low      { background: rgba(77,255,160,.10);  color: var(--success); }
+
+    .btn-remove {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 16px; padding: 2px 4px;
+      border-radius: 6px; transition: color .15s, background .15s;
+      flex-shrink: 0;
+    }
+    .btn-remove:hover { color: var(--danger); background: rgba(255,77,109,.1); }
+
+    .empty-state {
+      text-align: center; padding: 32px;
+      color: var(--muted); font-size: 12px; letter-spacing: .05em;
+      border: 1px dashed var(--border); border-radius: var(--radius);
+    }
+
+    /* ── CONTEXT CARD ── */
+    .context-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+    }
+    @media (max-width: 600px) { .context-grid { grid-template-columns: 1fr; } }
+
+    /* ── BUTTONS ── */
+    .btn-row { display: flex; gap: 12px; flex-wrap: wrap; }
+
+    .btn {
+      font-family: var(--mono); font-size: 12px; letter-spacing: .1em;
+      text-transform: uppercase; cursor: pointer;
+      border-radius: 8px; padding: 12px 24px; border: none;
+      transition: all .2s; display: flex; align-items: center; gap: 8px;
+    }
+
+    .btn-primary {
+      background: var(--accent); color: #fff;
+      box-shadow: 0 0 24px rgba(124,109,250,.35);
+    }
+    .btn-primary:hover {
+      background: #9480ff;
+      box-shadow: 0 0 36px rgba(124,109,250,.5);
+      transform: translateY(-1px);
+    }
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-secondary {
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--muted); color: var(--text); }
+
+    .btn-outline-accent {
+      background: transparent; color: var(--accent);
+      border: 1px solid rgba(124,109,250,.4);
+    }
+    .btn-outline-accent:hover { background: rgba(124,109,250,.1); }
+
+    /* ── RESPONSE PANEL ── */
+    #response-panel {
+      display: none; margin-top: 32px;
+    }
+
+    .response-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      font-size: 13px; line-height: 1.8;
+      white-space: pre-wrap;
+      max-height: 560px; overflow-y: auto;
+    }
+
+    /* ── LOADER ── */
+    .loader {
+      display: none; align-items: center; gap: 10px;
+      color: var(--muted); font-size: 12px; letter-spacing: .08em;
+      margin-top: 12px;
+    }
+    .loader.active { display: flex; }
+    .dots span {
+      display: inline-block; width: 6px; height: 6px;
+      border-radius: 50%; background: var(--accent);
+      animation: bounce 1.2s infinite;
+    }
+    .dots span:nth-child(2) { animation-delay: .2s; }
+    .dots span:nth-child(3) { animation-delay: .4s; }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed; bottom: 28px; right: 28px; z-index: 100;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 20px;
+      font-size: 12px; color: var(--text);
+      display: flex; align-items: center; gap: 10px;
+      transform: translateY(80px); opacity: 0;
+      transition: all .35s cubic-bezier(.34,1.56,.64,1);
+      pointer-events: none;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast-icon { font-size: 16px; }
+
+    /* ── COUNTER ── */
+    .counter {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--accent); color: #fff;
+      font-size: 10px; font-weight: 700; margin-left: 6px;
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-12px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0); }
+      40%           { transform: scale(1); }
+    }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+
+  <div class="container">
+
+    <!-- HEADER -->
+    <header>
+      <div class="badge">✦ AI Task Manager</div>
+      <h1>FreelanceAI<br><span>менеджер задач</span></h1>
+      <p class="subtitle">Введи свои задачи, и ИИ расставит приоритеты, составит план работы и даст рекомендации.</p>
+    </header>
+
+    <!-- STEP 1: CONTEXT -->
+    <div class="section-label">01 — контекст работы</div>
+    <div class="card">
+      <div class="context-grid">
+        <div>
+          <label>Текущая дата</label>
+          <input type="date" id="ctx-date" />
+        </div>
+        <div>
+          <label>Рабочих часов в день</label>
+          <input type="number" id="ctx-hours" value="8" min="1" max="16" />
+        </div>
+        <div>
+          <label>Твоё имя (необязательно)</label>
+          <input type="text" id="ctx-name" placeholder="Алексей" />
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2: ADD TASK -->
+    <div class="section-label" style="margin-top:32px;">02 — добавить задачу</div>
+    <div class="card">
+      <div class="form-grid">
+        <div class="span2">
+          <label>Название задачи *</label>
+          <input type="text" id="f-title" placeholder="Сделать дизайн лендинга" />
+        </div>
+        <div>
+          <label>Проект</label>
+          <input type="text" id="f-project" placeholder="Лендинг Иванов" />
+        </div>
+        <div>
+          <label>Клиент</label>
+          <input type="text" id="f-client" placeholder="Иванов А.В." />
+        </div>
+        <div>
+          <label>Тип задачи *</label>
+          <select id="f-type">
+            <option value="">— выбрать —</option>
+            <option value="development">💻 Разработка</option>
+            <option value="design">🎨 Дизайн</option>
+            <option value="content">✍️ Контент</option>
+            <option value="management">📋 Менеджмент</option>
+            <option value="testing">🧪 Тестирование</option>
+            <option value="research">🔍 Аналитика</option>
+            <option value="other">📦 Прочее</option>
+          </select>
+        </div>
+        <div>
+          <label>Дедлайн *</label>
+          <input type="date" id="f-deadline" />
+        </div>
+        <div>
+          <label>Оценка (часов)</label>
+          <input type="number" id="f-hours" placeholder="4" min="0.5" step="0.5" />
+        </div>
+        <div>
+          <label>Статус</label>
+          <select id="f-status">
+            <option value="todo">🔵 К выполнению</option>
+            <option value="in_progress">🟡 В процессе</option>
+            <option value="blocked">🔴 Заблокировано</option>
+          </select>
+        </div>
+        <div class="span2">
+          <label>Важность *</label>
+          <div class="pill-group" id="pill-group">
+            <button class="pill" data-val="low">Низкая</button>
+            <button class="pill" data-val="medium">Средняя</button>
+            <button class="pill active" data-val="high">Высокая</button>
+            <button class="pill" data-val="critical">Критическая</button>
+          </div>
+          <input type="hidden" id="f-importance" value="high" />
+        </div>
+        <div class="span2">
+          <label>Описание</label>
+          <textarea id="f-desc" placeholder="Дополнительные детали задачи..."></textarea>
+        </div>
+        <div class="span2">
+          <label>Теги (Enter для добавления)</label>
+          <div class="tags-wrap" id="tags-wrap">
+            <input id="tag-input" type="text" placeholder="срочно, figma, клиент..." />
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin-top:20px;">
+        <button class="btn btn-outline-accent" onclick="addTask()">＋ Добавить задачу</button>
+        <button class="btn btn-secondary" onclick="clearForm()">Очистить</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: TASK LIST -->
+    <div class="section-label" style="margin-top:32px;">
+      03 — список задач
+      <span class="counter" id="task-counter">0</span>
+    </div>
+
+    <div id="task-list">
+      <div class="empty-state" id="empty-state">
+        Задачи ещё не добавлены. Заполни форму выше и нажми «Добавить задачу».
+      </div>
+    </div>
+
+    <!-- SUBMIT -->
+    <div class="btn-row" style="margin-top:24px;">
+      <button class="btn btn-primary" onclick="submitTasks()">
+        ⚡ Проанализировать задачи
+      </button>
+      <button class="btn btn-secondary" onclick="loadDemo()">Загрузить демо</button>
+    </div>
+
+    <div class="loader" id="loader">
+      <div class="dots">
+        <span></span><span></span><span></span>
+      </div>
+      Анализирую задачи...
+    </div>
+
+    <!-- RESPONSE -->
+    <div id="response-panel">
+      <div class="section-label" style="margin-top:32px;">04 — результат анализа</div>
+      <div class="response-box" id="response-box"></div>
+      <div class="btn-row" style="margin-top:14px;">
+        <button class="btn btn-secondary" onclick="copyResult()">Копировать результат</button>
+        <button class="btn btn-secondary" onclick="resetAll()">Начать заново</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast">
+    <span class="toast-icon" id="toast-icon">✓</span>
+    <span id="toast-msg">Готово</span>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:8000/analyze'; // FastAPI endpoint
+
+    let tasks = [];
+    let tags = [];
+    let taskIdCounter = 1;
+
+    // ── SET TODAY DATE ──
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('ctx-date').value = today;
+
+    // ── PILLS ──
+    document.querySelectorAll('.pill').forEach(p => {
+      p.addEventListener('click', () => {
+        document.querySelectorAll('.pill').forEach(x => x.classList.remove('active'));
+        p.classList.add('active');
+        document.getElementById('f-importance').value = p.dataset.val;
+      });
+    });
+
+    // ── TAGS ──
+    const tagInput = document.getElementById('tag-input');
+    const tagsWrap = document.getElementById('tags-wrap');
+    tagsWrap.addEventListener('click', () => tagInput.focus());
+
+    tagInput.addEventListener('keydown', e => {
+      if ((e.key === 'Enter' || e.key === ',') && tagInput.value.trim()) {
+        e.preventDefault();
+        addTag(tagInput.value.trim());
+        tagInput.value = '';
+      }
+      if (e.key === 'Backspace' && !tagInput.value && tags.length) {
+        removeTag(tags[tags.length - 1]);
+      }
+    });
+
+    function addTag(val) {
+      val = val.replace(/,/g, '').trim();
+      if (!val || tags.includes(val)) return;
+      tags.push(val);
+      renderTags();
+    }
+
+    function removeTag(val) {
+      tags = tags.filter(t => t !== val);
+      renderTags();
+    }
+
+    function renderTags() {
+      Array.from(tagsWrap.querySelectorAll('.tag-chip')).forEach(el => el.remove());
+      tags.forEach(t => {
+        const chip = document.createElement('div');
+        chip.className = 'tag-chip';
+        chip.innerHTML = `${t}<button onclick="removeTag('${t}')" type="button">×</button>`;
+        tagsWrap.insertBefore(chip, tagInput);
+      });
+    }
+
+    // ── ADD TASK ──
+    function addTask() {
+      const title    = document.getElementById('f-title').value.trim();
+      const type     = document.getElementById('f-type').value;
+      const deadline = document.getElementById('f-deadline').value;
+      const imp      = document.getElementById('f-importance').value;
+
+      if (!title)    { showToast('⚠️', 'Введи название задачи'); return; }
+      if (!type)     { showToast('⚠️', 'Выбери тип задачи'); return; }
+      if (!deadline) { showToast('⚠️', 'Укажи дедлайн'); return; }
+
+      const task = {
+        id:             `task_${String(taskIdCounter++).padStart(3,'0')}`,
+        title,
+        description:    document.getElementById('f-desc').value.trim(),
+        project:        document.getElementById('f-project').value.trim(),
+        client:         document.getElementById('f-client').value.trim(),
+        type,
+        deadline,
+        estimated_hours: parseFloat(document.getElementById('f-hours').value) || null,
+        importance:     imp,
+        status:         document.getElementById('f-status').value,
+        tags:           [...tags],
+      };
+
+      tasks.push(task);
+      renderTaskList();
+      clearForm();
+      showToast('✓', `Задача «${title}» добавлена`);
+    }
+
+    // ── RENDER TASK LIST ──
+    function renderTaskList() {
+      const list = document.getElementById('task-list');
+      const empty = document.getElementById('empty-state');
+      document.getElementById('task-counter').textContent = tasks.length;
+
+      if (!tasks.length) {
+        list.innerHTML = '';
+        list.appendChild(empty);
+        return;
+      }
+
+      list.innerHTML = tasks.map((t, i) => `
+        <div class="task-item" data-imp="${t.importance}">
+          <div class="task-meta">
+            <div class="task-title">${t.title}</div>
+            <div class="task-details">
+              ${t.project ? `<span>📁 ${t.project}</span>` : ''}
+              ${t.client  ? `<span>👤 ${t.client}</span>` : ''}
+              <span>📅 ${t.deadline}</span>
+              ${t.estimated_hours ? `<span>⏱ ${t.estimated_hours}ч</span>` : ''}
+              <span class="imp-badge imp-${t.importance}">${{low:'Низкая',medium:'Средняя',high:'Высокая',critical:'Критическая'}[t.importance]}</span>
+            </div>
+          </div>
+          <button class="btn-remove" onclick="removeTask(${i})" title="Удалить">×</button>
+        </div>
+      `).join('');
+    }
+
+    function removeTask(i) {
+      const title = tasks[i].title;
+      tasks.splice(i, 1);
+      renderTaskList();
+      showToast('🗑', `«${title}» удалена`);
+    }
+
+    // ── CLEAR FORM ──
+    function clearForm() {
+      ['f-title','f-project','f-client','f-desc','f-hours'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+      document.getElementById('f-type').value = '';
+      document.getElementById('f-status').value = 'todo';
+      document.getElementById('f-deadline').value = '';
+      document.getElementById('f-importance').value = 'high';
+      document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+      document.querySelector('.pill[data-val="high"]').classList.add('active');
+      tags = [];
+      renderTags();
+    }
+
+    // ── SUBMIT ──
+    async function submitTasks() {
+      if (!tasks.length) { showToast('⚠️', 'Добавь хотя бы одну задачу'); return; }
+
+      const payload = {
+        user_context: {
+          current_date:        document.getElementById('ctx-date').value,
+          working_hours_per_day: parseInt(document.getElementById('ctx-hours').value) || 8,
+          user_name:           document.getElementById('ctx-name').value.trim() || null,
+          work_days:           ['Mon','Tue','Wed','Thu','Fri'],
+        },
+        tasks,
+      };
+
+      document.getElementById('loader').classList.add('active');
+      document.getElementById('response-panel').style.display = 'none';
+
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        document.getElementById('response-box').textContent = data.result || JSON.stringify(data, null, 2);
+        document.getElementById('response-panel').style.display = 'block';
+        document.getElementById('response-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        showToast('✓', 'Анализ готов!');
+      } catch (err) {
+        document.getElementById('response-box').textContent =
+          `❌ Ошибка подключения к API:\n${err.message}\n\nУбедись, что FastAPI сервер запущен на localhost:8000`;
+        document.getElementById('response-panel').style.display = 'block';
+        showToast('❌', 'Ошибка подключения к API');
+      } finally {
+        document.getElementById('loader').classList.remove('active');
+      }
+    }
+
+    // ── DEMO DATA ──
+    function loadDemo() {
+      tasks = [
+        { id:'task_001', title:'Исправить баги на сайте', description:'Клиент прислал 3 критических бага', project:'Поддержка Сидоров', client:'Сидоров Л.М.', type:'development', deadline: addDays(today,2), estimated_hours:4, importance:'critical', status:'todo', tags:['срочно','баги'] },
+        { id:'task_002', title:'Написать статью про SEO', description:'2000 слов, ключи согласованы', project:'Блог Петрова', client:'Петров К.С.', type:'content', deadline: addDays(today,4), estimated_hours:3, importance:'medium', status:'todo', tags:['seo','текст'] },
+        { id:'task_003', title:'Сделать дизайн лендинга', description:'Макет главной страницы', project:'Лендинг Иванов', client:'Иванов А.В.', type:'design', deadline: addDays(today,9), estimated_hours:6, importance:'high', status:'in_progress', tags:['figma','ui'] },
+        { id:'task_004', title:'Провести онбординг нового клиента', project:'Новый проект', client:'Козлов Р.Т.', type:'management', deadline: addDays(today,6), estimated_hours:2, importance:'high', status:'todo', tags:[] },
+      ];
+      taskIdCounter = 5;
+      renderTaskList();
+      showToast('✓', 'Демо-данные загружены (4 задачи)');
+    }
+
+    function addDays(dateStr, n) {
+      const d = new Date(dateStr); d.setDate(d.getDate() + n);
+      return d.toISOString().split('T')[0];
+    }
+
+    // ── COPY RESULT ──
+    function copyResult() {
+      const text = document.getElementById('response-box').textContent;
+      navigator.clipboard.writeText(text).then(() => showToast('✓', 'Скопировано в буфер обмена'));
+    }
+
+    // ── RESET ──
+    function resetAll() {
+      tasks = []; taskIdCounter = 1;
+      renderTaskList();
+      clearForm();
+      document.getElementById('response-panel').style.display = 'none';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ── TOAST ──
+    function showToast(icon, msg) {
+      const t = document.getElementById('toast');
+      document.getElementById('toast-icon').textContent = icon;
+      document.getElementById('toast-msg').textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    // ── INIT ──
+    renderTaskList();
+  </script>
+</body>
+</html>

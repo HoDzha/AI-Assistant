@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Freelance Flow</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  >
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <p class="hero-kicker">AI Task Manager</p>
+      <h1>Freelance Flow</h1>
+      <p class="hero-copy">
+        Управляй задачами по клиентам, фиксируй статус, держи под рукой GitHub-ссылки
+        и получай приоритизированный план работы от OpenAI.
+      </p>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Контекст работы</h2>
+          <p>Заполни параметры рабочего дня и добавь задачи в список.</p>
+        </div>
+
+        <div class="grid three">
+          <label class="field">
+            <span>Текущая дата</span>
+            <input id="ctx-date" type="date">
+          </label>
+          <label class="field">
+            <span>Часов в день</span>
+            <input id="ctx-hours" type="number" min="1" max="16" value="6">
+          </label>
+          <label class="field">
+            <span>Имя</span>
+            <input id="ctx-name" type="text" placeholder="Алексей">
+          </label>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <div class="panel-heading compact">
+          <h2>Добавить задачу</h2>
+          <p>Задача может хранить статус и ссылку на GitHub-репозиторий проекта.</p>
+        </div>
+
+        <div class="grid two">
+          <label class="field span-2">
+            <span>Название задачи</span>
+            <input id="task-title" type="text" placeholder="Исправить баг в форме заявки">
+          </label>
+          <label class="field">
+            <span>Проект</span>
+            <input id="task-project" type="text" placeholder="Client Beta CRM">
+          </label>
+          <label class="field">
+            <span>Клиент</span>
+            <input id="task-client" type="text" placeholder="Beta">
+          </label>
+          <label class="field span-2">
+            <span>GitHub-ссылка</span>
+            <input
+              id="task-github"
+              type="url"
+              placeholder="https://github.com/example/project"
+            >
+          </label>
+          <label class="field">
+            <span>Тип задачи</span>
+            <select id="task-type">
+              <option value="">Выбрать</option>
+              <option value="development">Разработка</option>
+              <option value="design">Дизайн</option>
+              <option value="content">Контент</option>
+              <option value="analytics">Аналитика</option>
+              <option value="management">Менеджмент</option>
+              <option value="other">Другое</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Дедлайн</span>
+            <input id="task-deadline" type="date">
+          </label>
+          <label class="field">
+            <span>Оценка в часах</span>
+            <input id="task-hours" type="number" min="0.5" max="24" step="0.5" placeholder="2.5">
+          </label>
+          <label class="field">
+            <span>Важность</span>
+            <select id="task-importance">
+              <option value="low">Низкая</option>
+              <option value="medium" selected>Средняя</option>
+              <option value="high">Высокая</option>
+              <option value="critical">Критическая</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Статус</span>
+            <select id="task-status">
+              <option value="todo">К выполнению</option>
+              <option value="in_progress">В процессе</option>
+              <option value="blocked">Заблокировано</option>
+              <option value="done">Завершено</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Зависимости</span>
+            <input id="task-dependencies" type="text" placeholder="task-001, task-002">
+          </label>
+          <label class="field span-2">
+            <span>Теги</span>
+            <input id="task-tags" type="text" placeholder="frontend, urgent, crm">
+          </label>
+          <label class="field span-2">
+            <span>Описание</span>
+            <textarea id="task-description" placeholder="Краткое содержание задачи"></textarea>
+          </label>
+          <label class="field span-2">
+            <span>Заметки</span>
+            <textarea id="task-notes" placeholder="Дополнительный контекст"></textarea>
+          </label>
+        </div>
+
+        <div class="button-row">
+          <button id="add-task-button" class="button primary" type="button">Добавить задачу</button>
+          <button id="clear-task-button" class="button secondary" type="button">Очистить поля</button>
+          <button id="load-demo-button" class="button ghost" type="button">Загрузить демо</button>
+        </div>
+      </section>
+
+      <section class="panel side-panel">
+        <div class="panel-heading compact">
+          <h2>Список задач</h2>
+          <p><span id="task-count">0</span> задач в текущем наборе.</p>
+        </div>
+
+        <div id="task-list" class="task-list"></div>
+
+        <div class="button-row sticky-actions">
+          <button id="analyze-button" class="button primary wide" type="button">Проанализировать задачи</button>
+        </div>
+        <div id="loading-state" class="status-note hidden">Отправляю задачи в OpenAI и собираю план...</div>
+        <div id="error-state" class="error-box hidden"></div>
+      </section>
+    </main>
+
+    <section id="results-section" class="results hidden">
+      <div class="result-card overview-card">
+        <div class="panel-heading compact">
+          <h2>Общий вывод</h2>
+          <p id="overview-meta"></p>
+        </div>
+        <p id="overview-summary" class="overview-summary"></p>
+      </div>
+
+      <div class="results-grid">
+        <div class="result-card">
+          <div class="panel-heading compact">
+            <h2>Приоритеты</h2>
+            <p>Список задач со статусами и рекомендациями.</p>
+          </div>
+          <div id="priorities-output" class="stack"></div>
+        </div>
+
+        <div class="result-card">
+          <div class="panel-heading compact">
+            <h2>План по дням</h2>
+            <p>Распределение задач по рабочим слотам.</p>
+          </div>
+          <div id="plan-output" class="stack"></div>
+        </div>
+      </div>
+
+      <div class="results-grid">
+        <div class="result-card">
+          <div class="panel-heading compact">
+            <h2>Проекты</h2>
+            <p>Сводка по проектам и их статусам.</p>
+          </div>
+          <div id="projects-output" class="stack"></div>
+        </div>
+
+        <div class="result-card">
+          <div class="panel-heading compact">
+            <h2>Рекомендации</h2>
+            <p>Практические советы для рабочего процесса.</p>
+          </div>
+          <ul id="recommendations-output" class="recommendations-list"></ul>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
