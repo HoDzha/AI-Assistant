@@ -14,7 +14,7 @@ const state = {
   currentPage: 1,
   lastAnalysis: null,
   editingTaskId: null,
-  filters: { search: "", status: "all", project: "all", showArchived: false, sort: "deadline-asc" },
+  filters: { search: "", status: "all", project: "all", view: "active", sort: "deadline-asc" },
 };
 
 const elements = {
@@ -29,7 +29,6 @@ const elements = {
   taskStatusFilter: document.getElementById("task-status-filter"),
   taskProjectFilter: document.getElementById("task-project-filter"),
   taskSort: document.getElementById("task-sort"),
-  taskShowArchived: document.getElementById("task-show-archived"),
   clearFiltersButton: document.getElementById("clear-filters-button"),
   addTaskButton: document.getElementById("add-task-button"),
   clearTaskButton: document.getElementById("clear-task-button"),
@@ -47,6 +46,10 @@ const elements = {
   filterToggle: document.getElementById("filter-toggle"),
   filterToggleIcon: document.getElementById("filter-toggle-icon"),
   filterBody: document.getElementById("filter-body"),
+  tabActive: document.getElementById("tab-active"),
+  tabArchive: document.getElementById("tab-archive"),
+  tabActiveCount: document.getElementById("tab-active-count"),
+  tabArchiveCount: document.getElementById("tab-archive-count"),
   resultsSection: document.getElementById("results-section"),
   overviewSummary: document.getElementById("overview-summary"),
   overviewMeta: document.getElementById("overview-meta"),
@@ -84,11 +87,12 @@ elements.exportPdfButton.addEventListener("click", exportResultsToPdf);
 elements.taskSearch.addEventListener("input", (event) => updateFilter("search", event.target.value.trim().toLowerCase()));
 elements.taskStatusFilter.addEventListener("change", (event) => updateFilter("status", event.target.value));
 elements.taskProjectFilter.addEventListener("change", (event) => updateFilter("project", event.target.value));
-elements.taskShowArchived.addEventListener("change", (event) => updateFilter("showArchived", event.target.checked));
 elements.taskSort.addEventListener("change", (event) => updateFilter("sort", event.target.value));
 elements.clearFiltersButton.addEventListener("click", resetFilters);
 elements.formToggle.addEventListener("click", toggleForm);
 elements.filterToggle.addEventListener("click", toggleFilters);
+elements.tabActive.addEventListener("click", () => switchTab("active"));
+elements.tabArchive.addEventListener("click", () => switchTab("archive"));
 
 // ---- Toast Notifications ----
 function showToast(message, type = "success") {
@@ -112,6 +116,20 @@ function toggleFilters() {
   elements.filterToggle.classList.toggle("collapsed", collapsed);
 }
 
+function switchTab(view) {
+  state.filters.view = view;
+  state.currentPage = 1;
+
+  // Update tab UI
+  const isActive = view === "active";
+  elements.tabActive.classList.toggle("active", isActive);
+  elements.tabArchive.classList.toggle("active", !isActive);
+  elements.tabActive.setAttribute("aria-selected", String(isActive));
+  elements.tabArchive.setAttribute("aria-selected", String(!isActive));
+
+  renderTaskList();
+}
+
 // ---- Filter & Sort ----
 function updateFilter(key, value) {
   state.filters[key] = value;
@@ -121,14 +139,12 @@ function updateFilter(key, value) {
 }
 
 function resetFilters() {
-  state.filters = { search: "", status: "all", project: "all", showArchived: false, sort: "deadline-asc" };
+  state.filters = { search: "", status: "all", project: "all", view: "active", sort: "deadline-asc" };
   elements.taskSearch.value = "";
   elements.taskStatusFilter.value = "all";
   elements.taskProjectFilter.value = "all";
-  elements.taskShowArchived.checked = false;
   elements.taskSort.value = "deadline-asc";
-  state.currentPage = 1;
-  renderTaskList();
+  switchTab("active");
   showToast("Фильтры сброшены", "info");
 }
 
@@ -258,11 +274,18 @@ function fillTaskForm(task) {
 // ---- Render Task List ----
 function renderTaskList() {
   syncProjectFilterOptions();
+
+  // Update tab counts
+  const activeCount = state.tasks.filter((t) => !t.archived).length;
+  const archiveCount = state.tasks.filter((t) => t.archived).length;
+  elements.tabActiveCount.textContent = String(activeCount);
+  elements.tabArchiveCount.textContent = String(archiveCount);
+
   const visibleTasks = getVisibleTasks();
   const totalPages = getTotalPages(visibleTasks);
   state.currentPage = Math.min(state.currentPage, totalPages);
   elements.taskCount.textContent = String(visibleTasks.length);
-  elements.taskSummary.textContent = `${state.tasks.filter((task) => !task.archived).length} активных · ${state.tasks.filter((task) => task.archived).length} в архиве`;
+  elements.taskSummary.textContent = `${activeCount} активных · ${archiveCount} в архиве`;
 
   if (!visibleTasks.length) {
     elements.taskList.innerHTML =
@@ -326,8 +349,13 @@ function renderTaskList() {
 }
 
 function getVisibleTasks() {
+  const isArchiveView = state.filters.view === "archive";
+
   let tasks = state.tasks.filter((task) => {
-    if (!state.filters.showArchived && task.archived) return false;
+    // Tab filter: show only active or only archived
+    if (isArchiveView && !task.archived) return false;
+    if (!isArchiveView && task.archived) return false;
+
     if (state.filters.status !== "all" && task.status !== state.filters.status) return false;
     if (state.filters.project !== "all" && (task.project || "Без проекта") !== state.filters.project) return false;
     if (!state.filters.search) return true;

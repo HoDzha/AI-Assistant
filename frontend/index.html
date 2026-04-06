@@ -147,8 +147,18 @@
       <section class="panel side-panel">
         <div class="panel-heading compact">
           <h2>Список задач</h2>
-          <p><span id="task-count">0</span> задач в текущем виде.</p>
+          <p><span id="task-count">0</span> задач.</p>
           <p id="task-summary" class="support-copy">0 активных · 0 в архиве</p>
+        </div>
+
+        <!-- Tabs: Active / Archive -->
+        <div class="task-tabs" role="tablist">
+          <button id="tab-active" class="task-tab active" role="tab" aria-selected="true" data-tab="active">
+            Активные <span id="tab-active-count" class="tab-count">0</span>
+          </button>
+          <button id="tab-archive" class="task-tab" role="tab" aria-selected="false" data-tab="archive">
+            Архив <span id="tab-archive-count" class="tab-count">0</span>
+          </button>
         </div>
 
         <!-- Collapsible Filters -->
@@ -191,10 +201,6 @@
             </label>
           </div>
           <div class="filter-actions">
-            <label class="checkbox-field">
-              <input id="task-show-archived" type="checkbox">
-              <span>Показать архив</span>
-            </label>
             <button id="clear-filters-button" class="button ghost compact-button" type="button">Сбросить</button>
           </div>
         </div>
