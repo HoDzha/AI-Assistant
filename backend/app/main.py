@@ -24,7 +24,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins if settings.allowed_origins else ["*"],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 

@@ -121,6 +121,29 @@ textarea {
   line-height: 1.6;
 }
 
+.title-with-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mode-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.support-copy {
+  font-size: 13px;
+}
+
 .grid {
   display: grid;
   gap: 16px;
@@ -213,6 +236,10 @@ textarea {
   justify-content: center;
 }
 
+.compact-button {
+  padding: 9px 14px;
+}
+
 .section-divider {
   height: 1px;
   margin: 22px 0;
@@ -223,6 +250,53 @@ textarea {
 .stack {
   display: grid;
   gap: 14px;
+}
+
+.filter-panel {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid rgba(23, 34, 35, 0.08);
+  border-radius: 18px;
+  background: var(--paper-strong);
+}
+
+.filter-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.checkbox-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.checkbox-field input {
+  width: 18px;
+  height: 18px;
+}
+
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pagination-info {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pagination-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .task-item,
@@ -304,6 +378,7 @@ textarea {
 
 .task-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -315,6 +390,78 @@ textarea {
   width: 34px;
   height: 34px;
   cursor: pointer;
+}
+
+.action-button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.action-button:hover {
+  background: #f2ede5;
+}
+
+.danger-action {
+  color: var(--danger);
+  border-color: rgba(180, 35, 24, 0.22);
+}
+
+.task-item-archived {
+  opacity: 0.78;
+}
+
+.task-body {
+  margin-top: 12px;
+}
+
+.task-copy {
+  margin: 0;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+.task-inline-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  color: var(--muted);
+}
+
+.inline-status-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inline-status-control span {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.task-status-select {
+  min-width: 170px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+}
+
+.compact-meta {
+  margin-top: 12px;
+}
+
+.subtle-badge,
+.archived-badge {
+  background: #ede8df;
+  color: #5a6665;
 }
 
 .github-link {
@@ -434,7 +581,15 @@ textarea {
 
   .task-top,
   .priority-top,
-  .project-top {
+  .project-top,
+  .pagination-row {
     flex-direction: column;
+  }
+
+  .filter-actions,
+  .task-inline-meta,
+  .title-with-badge {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

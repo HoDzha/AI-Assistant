@@ -18,7 +18,7 @@
       <p class="hero-kicker">AI Task Manager</p>
       <h1>Freelance Flow</h1>
       <p class="hero-copy">
-        Управляй задачами по клиентам, фиксируй статус, держи под рукой GitHub-ссылки
+        Управляй задачами по клиентам, фиксируй статусы, держи под рукой GitHub-ссылки
         и получай приоритизированный план работы от OpenAI.
       </p>
     </header>
@@ -27,7 +27,7 @@
       <section class="panel">
         <div class="panel-heading">
           <h2>Контекст работы</h2>
-          <p>Заполни параметры рабочего дня и добавь задачи в список.</p>
+          <p>Заполни параметры рабочего дня и управляй задачами в едином цикле.</p>
         </div>
 
         <div class="grid three">
@@ -48,8 +48,13 @@
         <div class="section-divider"></div>
 
         <div class="panel-heading compact">
-          <h2>Добавить задачу</h2>
-          <p>Задача может хранить статус и ссылку на GitHub-репозиторий проекта.</p>
+          <div class="title-with-badge">
+            <h2 id="task-form-title">Добавить задачу</h2>
+            <span id="task-form-mode" class="mode-badge">Новая</span>
+          </div>
+          <p id="task-form-description">
+            Используй одну форму для создания и редактирования задач.
+          </p>
         </div>
 
         <div class="grid two">
@@ -139,13 +144,47 @@
       <section class="panel side-panel">
         <div class="panel-heading compact">
           <h2>Список задач</h2>
-          <p><span id="task-count">0</span> задач в текущем наборе.</p>
+          <p><span id="task-count">0</span> задач в текущем виде.</p>
+          <p id="task-summary" class="support-copy">0 активных · 0 в архиве</p>
+        </div>
+
+        <div class="filter-panel">
+          <div class="grid two">
+            <label class="field span-2">
+              <span>Поиск</span>
+              <input id="task-search" type="search" placeholder="Название, клиент, проект, теги">
+            </label>
+            <label class="field">
+              <span>Статус</span>
+              <select id="task-status-filter">
+                <option value="all">Все</option>
+                <option value="todo">К выполнению</option>
+                <option value="in_progress">В процессе</option>
+                <option value="blocked">Заблокировано</option>
+                <option value="done">Завершено</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Проект</span>
+              <select id="task-project-filter">
+                <option value="all">Все проекты</option>
+              </select>
+            </label>
+          </div>
+          <div class="filter-actions">
+            <label class="checkbox-field">
+              <input id="task-show-archived" type="checkbox">
+              <span>Показать архив</span>
+            </label>
+            <button id="clear-filters-button" class="button ghost compact-button" type="button">Сбросить фильтры</button>
+          </div>
         </div>
 
         <div id="task-list" class="task-list"></div>
+        <div id="task-pagination" class="pagination-row"></div>
 
         <div class="button-row sticky-actions">
-          <button id="analyze-button" class="button primary wide" type="button">Проанализировать задачи</button>
+          <button id="analyze-button" class="button primary wide" type="button">Проанализировать активные задачи</button>
         </div>
         <div id="loading-state" class="status-note hidden">Отправляю задачи в OpenAI и собираю план...</div>
         <div id="error-state" class="error-box hidden"></div>
@@ -159,6 +198,10 @@
           <p id="overview-meta"></p>
         </div>
         <p id="overview-summary" class="overview-summary"></p>
+        <div id="export-actions" class="button-row hidden">
+          <button id="export-csv-button" class="button secondary" type="button">Экспорт CSV</button>
+          <button id="export-pdf-button" class="button ghost" type="button">Экспорт PDF</button>
+        </div>
       </div>
 
       <div class="results-grid">
@@ -198,7 +241,7 @@
       </div>
     </section>
   </div>
-
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

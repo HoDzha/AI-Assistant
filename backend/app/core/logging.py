@@ -24,9 +24,18 @@ class SecretRedactionFilter(logging.Filter):
     """Ensure accidentally logged secrets are redacted."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        record.msg = _redact_secrets(str(record.msg))
-        if record.args:
-            record.args = tuple(_redact_secrets(str(arg)) for arg in record.args)
+        if isinstance(record.msg, str):
+            record.msg = _redact_secrets(record.msg)
+        if isinstance(record.args, dict):
+            record.args = {
+                key: _redact_secrets(value) if isinstance(value, str) else value
+                for key, value in record.args.items()
+            }
+        elif isinstance(record.args, tuple):
+            record.args = tuple(
+                _redact_secrets(arg) if isinstance(arg, str) else arg
+                for arg in record.args
+            )
         return True
 
 

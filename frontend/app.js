@@ -1,31 +1,18 @@
 const API_BASE_URL = "http://127.0.0.1:8000/api";
+const TASKS_API_URL = `${API_BASE_URL}/tasks`;
+const TASKS_PER_PAGE = 5;
+const today = new Date().toISOString().split("T")[0];
+const statusLabels = { todo: "К выполнению", in_progress: "В процессе", blocked: "Заблокировано", done: "Завершено" };
+const projectStatusLabels = { planned: "Планируется", in_progress: "В работе", attention_needed: "Требует внимания", done: "Завершено" };
+const priorityLabels = { low: "Низкий", medium: "Средний", high: "Высокий", critical: "Критический" };
 
 const state = {
   tasks: [],
   counter: 1,
-};
-
-const today = new Date().toISOString().split("T")[0];
-
-const statusLabels = {
-  todo: "К выполнению",
-  in_progress: "В процессе",
-  blocked: "Заблокировано",
-  done: "Завершено",
-};
-
-const projectStatusLabels = {
-  planned: "Планируется",
-  in_progress: "В работе",
-  attention_needed: "Требует внимания",
-  done: "Завершён",
-};
-
-const priorityLabels = {
-  low: "Низкий",
-  medium: "Средний",
-  high: "Высокий",
-  critical: "Критический",
+  currentPage: 1,
+  lastAnalysis: null,
+  editingTaskId: null,
+  filters: { search: "", status: "all", project: "all", showArchived: false },
 };
 
 const elements = {
@@ -33,13 +20,23 @@ const elements = {
   ctxHours: document.getElementById("ctx-hours"),
   ctxName: document.getElementById("ctx-name"),
   taskCount: document.getElementById("task-count"),
+  taskSummary: document.getElementById("task-summary"),
   taskList: document.getElementById("task-list"),
+  taskPagination: document.getElementById("task-pagination"),
+  taskSearch: document.getElementById("task-search"),
+  taskStatusFilter: document.getElementById("task-status-filter"),
+  taskProjectFilter: document.getElementById("task-project-filter"),
+  taskShowArchived: document.getElementById("task-show-archived"),
+  clearFiltersButton: document.getElementById("clear-filters-button"),
   addTaskButton: document.getElementById("add-task-button"),
   clearTaskButton: document.getElementById("clear-task-button"),
   loadDemoButton: document.getElementById("load-demo-button"),
   analyzeButton: document.getElementById("analyze-button"),
   loadingState: document.getElementById("loading-state"),
   errorState: document.getElementById("error-state"),
+  taskFormTitle: document.getElementById("task-form-title"),
+  taskFormDescription: document.getElementById("task-form-description"),
+  taskFormMode: document.getElementById("task-form-mode"),
   resultsSection: document.getElementById("results-section"),
   overviewSummary: document.getElementById("overview-summary"),
   overviewMeta: document.getElementById("overview-meta"),
@@ -47,36 +44,79 @@ const elements = {
   planOutput: document.getElementById("plan-output"),
   projectsOutput: document.getElementById("projects-output"),
   recommendationsOutput: document.getElementById("recommendations-output"),
+  exportActions: document.getElementById("export-actions"),
+  exportCsvButton: document.getElementById("export-csv-button"),
+  exportPdfButton: document.getElementById("export-pdf-button"),
 };
 
-elements.ctxDate.value = today;
+const formFieldIds = [
+  "task-title",
+  "task-project",
+  "task-client",
+  "task-github",
+  "task-deadline",
+  "task-hours",
+  "task-dependencies",
+  "task-tags",
+  "task-description",
+  "task-notes",
+];
 
-elements.addTaskButton.addEventListener("click", addTask);
+elements.ctxDate.value = today;
+elements.addTaskButton.addEventListener("click", submitTaskForm);
 elements.clearTaskButton.addEventListener("click", clearTaskForm);
 elements.loadDemoButton.addEventListener("click", loadDemoData);
 elements.analyzeButton.addEventListener("click", analyzeTasks);
+elements.exportCsvButton.addEventListener("click", exportResultsToCsv);
+elements.exportPdfButton.addEventListener("click", exportResultsToPdf);
+elements.taskSearch.addEventListener("input", (event) => updateFilter("search", event.target.value.trim().toLowerCase()));
+elements.taskStatusFilter.addEventListener("change", (event) => updateFilter("status", event.target.value));
+elements.taskProjectFilter.addEventListener("change", (event) => updateFilter("project", event.target.value));
+elements.taskShowArchived.addEventListener("change", (event) => updateFilter("showArchived", event.target.checked));
+elements.clearFiltersButton.addEventListener("click", resetFilters);
 
-function readTaskForm() {
+function updateFilter(key, value) {
+  state.filters[key] = value;
+  state.currentPage = 1;
+  renderTaskList();
+}
+
+function resetFilters() {
+  state.filters = { search: "", status: "all", project: "all", showArchived: false };
+  elements.taskSearch.value = "";
+  elements.taskStatusFilter.value = "all";
+  elements.taskProjectFilter.value = "all";
+  elements.taskShowArchived.checked = false;
+  state.currentPage = 1;
+  renderTaskList();
+}
+
+async function initializeApp() {
+  renderTaskList();
+  try {
+    const data = await requestJson(TASKS_API_URL);
+    state.tasks = Array.isArray(data.tasks) ? data.tasks : [];
+    state.counter = getNextTaskCounter(state.tasks);
+    renderTaskList();
+    showError("");
+  } catch (error) {
+    renderTaskList();
+    showError(`Не удалось загрузить сохраненные задачи: ${error.message}`);
+  }
+}
+
+function buildTaskFromForm(taskId) {
   const title = document.getElementById("task-title").value.trim();
   const type = document.getElementById("task-type").value;
   const deadline = document.getElementById("task-deadline").value;
   const githubUrl = document.getElementById("task-github").value.trim();
-
-  if (!title) {
-    throw new Error("Укажи название задачи.");
-  }
-  if (!type) {
-    throw new Error("Выбери тип задачи.");
-  }
-  if (!deadline) {
-    throw new Error("Укажи дедлайн.");
-  }
-  if (githubUrl && !isValidUrl(githubUrl)) {
-    throw new Error("GitHub-ссылка должна быть корректным URL.");
-  }
-
+  if (!title) throw new Error("Укажи название задачи.");
+  if (!type) throw new Error("Выбери тип задачи.");
+  if (!deadline) throw new Error("Укажи дедлайн.");
+  if (githubUrl && !isValidUrl(githubUrl)) throw new Error("GitHub-ссылка должна быть корректным URL.");
+  const currentTask = state.editingTaskId ? state.tasks.find((task) => task.id === state.editingTaskId) : null;
   return {
-    id: `task-${String(state.counter).padStart(3, "0")}`,
+    id: taskId,
     title,
     description: document.getElementById("task-description").value.trim() || null,
     project: document.getElementById("task-project").value.trim() || null,
@@ -87,19 +127,35 @@ function readTaskForm() {
     estimated_hours: readOptionalNumber("task-hours"),
     importance: document.getElementById("task-importance").value,
     status: document.getElementById("task-status").value,
+    archived: currentTask?.archived || false,
     tags: splitList(document.getElementById("task-tags").value),
     dependencies: splitList(document.getElementById("task-dependencies").value),
     notes: document.getElementById("task-notes").value.trim() || null,
   };
 }
 
-function addTask() {
+async function submitTaskForm() {
   try {
-    const task = readTaskForm();
-    state.tasks.push(task);
-    state.counter += 1;
-    renderTaskList();
+    if (state.editingTaskId) {
+      const payload = buildTaskFromForm(state.editingTaskId);
+      const saved = await requestJson(`${TASKS_API_URL}/${encodeURIComponent(state.editingTaskId)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      replaceTaskInState(saved);
+    } else {
+      const payload = buildTaskFromForm(buildTaskId());
+      const saved = await requestJson(TASKS_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      state.tasks.push(saved);
+      state.counter = getNextTaskCounter(state.tasks);
+    }
     clearTaskForm();
+    renderTaskList();
     showError("");
   } catch (error) {
     showError(error.message);
@@ -107,36 +163,64 @@ function addTask() {
 }
 
 function clearTaskForm() {
-  [
-    "task-title",
-    "task-project",
-    "task-client",
-    "task-github",
-    "task-deadline",
-    "task-hours",
-    "task-dependencies",
-    "task-tags",
-    "task-description",
-    "task-notes",
-  ].forEach((id) => {
+  formFieldIds.forEach((id) => {
     document.getElementById(id).value = "";
   });
   document.getElementById("task-type").value = "";
   document.getElementById("task-importance").value = "medium";
   document.getElementById("task-status").value = "todo";
+  setEditingTask(null);
+}
+
+function setEditingTask(task) {
+  state.editingTaskId = task ? task.id : null;
+  elements.taskFormTitle.textContent = task ? "Редактировать задачу" : "Добавить задачу";
+  elements.taskFormDescription.textContent = task
+    ? `Изменения будут сохранены для ${task.id}.`
+    : "Используй одну форму для создания и редактирования задач.";
+  elements.taskFormMode.textContent = task ? "Редактирование" : "Новая";
+  elements.addTaskButton.textContent = task ? "Сохранить изменения" : "Добавить задачу";
+  elements.clearTaskButton.textContent = task ? "Отменить редактирование" : "Очистить поля";
+}
+
+function fillTaskForm(task) {
+  document.getElementById("task-title").value = task.title;
+  document.getElementById("task-project").value = task.project || "";
+  document.getElementById("task-client").value = task.client || "";
+  document.getElementById("task-github").value = task.github_url || "";
+  document.getElementById("task-type").value = task.type;
+  document.getElementById("task-deadline").value = task.deadline;
+  document.getElementById("task-hours").value = task.estimated_hours ?? "";
+  document.getElementById("task-importance").value = task.importance;
+  document.getElementById("task-status").value = task.status;
+  document.getElementById("task-dependencies").value = task.dependencies.join(", ");
+  document.getElementById("task-tags").value = task.tags.join(", ");
+  document.getElementById("task-description").value = task.description || "";
+  document.getElementById("task-notes").value = task.notes || "";
+  setEditingTask(task);
 }
 
 function renderTaskList() {
-  elements.taskCount.textContent = String(state.tasks.length);
-  if (state.tasks.length === 0) {
-    elements.taskList.innerHTML = '<div class="empty-state">Пока нет задач. Добавь хотя бы одну задачу для анализа.</div>';
+  syncProjectFilterOptions();
+  const visibleTasks = getVisibleTasks();
+  const totalPages = getTotalPages(visibleTasks);
+  state.currentPage = Math.min(state.currentPage, totalPages);
+  elements.taskCount.textContent = String(visibleTasks.length);
+  elements.taskSummary.textContent = `${state.tasks.filter((task) => !task.archived).length} активных · ${state.tasks.filter((task) => task.archived).length} в архиве`;
+  if (!visibleTasks.length) {
+    elements.taskList.innerHTML =
+      '<div class="empty-state">Нет задач под текущие фильтры. Попробуй сбросить фильтры или добавить новую задачу.</div>';
+    elements.taskPagination.innerHTML = "";
     return;
   }
 
+  const start = (state.currentPage - 1) * TASKS_PER_PAGE;
+  const pageTasks = visibleTasks.slice(start, start + TASKS_PER_PAGE);
   elements.taskList.innerHTML = "";
-  state.tasks.forEach((task, index) => {
+
+  pageTasks.forEach((task) => {
     const item = document.createElement("article");
-    item.className = "task-item";
+    item.className = `task-item${task.archived ? " task-item-archived" : ""}`;
     item.innerHTML = `
       <div class="task-top">
         <div>
@@ -145,56 +229,190 @@ function renderTaskList() {
             <span class="badge status-${task.status}">${statusLabels[task.status]}</span>
             <span class="badge priority-${task.importance}">${priorityLabels[task.importance]}</span>
             <span class="badge">${escapeHtml(task.type)}</span>
+            ${task.archived ? '<span class="badge archived-badge">Архив</span>' : ""}
           </div>
         </div>
         <div class="task-actions">
-          <button class="icon-button" type="button" aria-label="Удалить задачу">×</button>
+          <button class="action-button" type="button" data-action="edit">Редактировать</button>
+          <button class="action-button" type="button" data-action="duplicate">Дубликат</button>
+          <button class="action-button" type="button" data-action="archive">${task.archived ? "Вернуть" : "В архив"}</button>
+          <button class="action-button danger-action" type="button" data-action="delete">Удалить</button>
         </div>
       </div>
-      <p>${escapeHtml(task.project || "Без проекта")} · дедлайн ${escapeHtml(task.deadline)}</p>
-      ${task.github_url ? `<a class="github-link" href="${task.github_url}" target="_blank" rel="noreferrer">Открыть GitHub</a>` : ""}
+      <div class="task-body">
+        <p class="task-copy">${escapeHtml(task.project || "Без проекта")} · ${escapeHtml(task.client || "Клиент не указан")} · дедлайн ${escapeHtml(task.deadline)}</p>
+        <div class="task-inline-meta">
+          <span>${task.estimated_hours ? `${task.estimated_hours} ч` : "Без оценки"}</span>
+          <label class="inline-status-control">
+            <span>Статус</span>
+            <select class="task-status-select" data-action="status">${buildStatusOptions(task.status)}</select>
+          </label>
+        </div>
+        ${task.description ? `<p class="task-copy">${escapeHtml(task.description)}</p>` : ""}
+        ${task.tags.length ? `<div class="meta-row compact-meta">${task.tags.map((tag) => `<span class="badge subtle-badge">#${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
+        ${buildSafeExternalLink(task.github_url, "Открыть GitHub")}
+      </div>
     `;
-    item.querySelector("button").addEventListener("click", () => removeTask(index));
+    item.querySelector("[data-action='edit']").addEventListener("click", () => {
+      fillTaskForm(task);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    item.querySelector("[data-action='duplicate']").addEventListener("click", () => duplicateTask(task));
+    item.querySelector("[data-action='archive']").addEventListener("click", () => toggleTaskArchive(task));
+    item.querySelector("[data-action='delete']").addEventListener("click", () => removeTask(task.id));
+    item.querySelector("[data-action='status']").addEventListener("change", (event) => updateTask(task.id, { status: event.target.value }));
     elements.taskList.appendChild(item);
+  });
+
+  renderTaskPagination(totalPages);
+}
+
+function getVisibleTasks() {
+  return state.tasks.filter((task) => {
+    if (!state.filters.showArchived && task.archived) return false;
+    if (state.filters.status !== "all" && task.status !== state.filters.status) return false;
+    if (state.filters.project !== "all" && (task.project || "Без проекта") !== state.filters.project) return false;
+    if (!state.filters.search) return true;
+    const haystack = [
+      task.id,
+      task.title,
+      task.project || "",
+      task.client || "",
+      task.type,
+      task.description || "",
+      task.notes || "",
+      task.tags.join(" "),
+    ].join(" ").toLowerCase();
+    return haystack.includes(state.filters.search);
   });
 }
 
-function removeTask(index) {
-  state.tasks.splice(index, 1);
-  renderTaskList();
+function syncProjectFilterOptions() {
+  const currentValue = state.filters.project;
+  const projects = Array.from(new Set(state.tasks.map((task) => task.project || "Без проекта")))
+    .sort((left, right) => left.localeCompare(right, "ru"));
+  elements.taskProjectFilter.innerHTML = '<option value="all">Все проекты</option>';
+  projects.forEach((project) => {
+    const option = document.createElement("option");
+    option.value = project;
+    option.textContent = project;
+    elements.taskProjectFilter.appendChild(option);
+  });
+  if (projects.includes(currentValue)) {
+    elements.taskProjectFilter.value = currentValue;
+  } else {
+    state.filters.project = "all";
+    elements.taskProjectFilter.value = "all";
+  }
+}
+
+function buildStatusOptions(selectedStatus) {
+  return Object.entries(statusLabels)
+    .map(([value, label]) => `<option value="${value}"${value === selectedStatus ? " selected" : ""}>${label}</option>`)
+    .join("");
+}
+
+function renderTaskPagination(totalPages) {
+  if (totalPages <= 1) {
+    elements.taskPagination.innerHTML = "";
+    return;
+  }
+  elements.taskPagination.innerHTML = "";
+  elements.taskPagination.append(
+    buildPaginationButton("Назад", state.currentPage === 1, () => { state.currentPage -= 1; renderTaskList(); }),
+    Object.assign(document.createElement("span"), { className: "pagination-info", textContent: `Страница ${state.currentPage} из ${totalPages}` }),
+    buildPaginationButton("Вперед", state.currentPage === totalPages, () => { state.currentPage += 1; renderTaskList(); })
+  );
+}
+
+function buildPaginationButton(label, disabled, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "button ghost pagination-button";
+  button.textContent = label;
+  button.disabled = disabled;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+async function updateTask(taskId, changes) {
+  const existingTask = state.tasks.find((task) => task.id === taskId);
+  if (!existingTask) return;
+  try {
+    const saved = await requestJson(`${TASKS_API_URL}/${encodeURIComponent(taskId)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...existingTask, ...changes }),
+    });
+    replaceTaskInState(saved);
+    if (state.editingTaskId === taskId) fillTaskForm(saved);
+    renderTaskList();
+    showError("");
+  } catch (error) {
+    showError(error.message);
+  }
+}
+
+async function duplicateTask(task) {
+  try {
+    const payload = { ...task, id: buildTaskId(), title: `${task.title} (копия)`, archived: false };
+    const saved = await requestJson(TASKS_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    state.tasks.push(saved);
+    state.counter = getNextTaskCounter(state.tasks);
+    state.currentPage = getTotalPages(getVisibleTasks());
+    renderTaskList();
+    showError("");
+  } catch (error) {
+    showError(error.message);
+  }
+}
+
+async function toggleTaskArchive(task) {
+  await updateTask(task.id, { archived: !task.archived });
+}
+
+async function removeTask(taskId) {
+  try {
+    await requestJson(`${TASKS_API_URL}/${encodeURIComponent(taskId)}`, { method: "DELETE" });
+    state.tasks = state.tasks.filter((task) => task.id !== taskId);
+    if (state.editingTaskId === taskId) clearTaskForm();
+    if ((state.currentPage - 1) * TASKS_PER_PAGE >= getVisibleTasks().length && state.currentPage > 1) {
+      state.currentPage -= 1;
+    }
+    renderTaskList();
+    showError("");
+  } catch (error) {
+    showError(error.message);
+  }
 }
 
 async function analyzeTasks() {
-  if (state.tasks.length === 0) {
-    showError("Добавь хотя бы одну задачу перед анализом.");
+  const activeTasks = state.tasks.filter((task) => !task.archived);
+  if (!activeTasks.length) {
+    showError("Добавь хотя бы одну активную задачу перед анализом.");
     return;
   }
-
-  const payload = {
-    user_context: {
-      current_date: elements.ctxDate.value || today,
-      working_hours_per_day: Number(elements.ctxHours.value) || 6,
-      user_name: elements.ctxName.value.trim() || null,
-      work_days: ["Mon", "Tue", "Wed", "Thu", "Fri"],
-    },
-    tasks: state.tasks,
-  };
-
   setLoading(true);
   showError("");
   try {
-    const response = await fetch(`${API_BASE_URL}/analyze`, {
+    const data = await requestJson(`${API_BASE_URL}/analyze`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_context: {
+          current_date: elements.ctxDate.value || today,
+          working_hours_per_day: Number(elements.ctxHours.value) || 6,
+          user_name: elements.ctxName.value.trim() || null,
+          work_days: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+        },
+        tasks: activeTasks,
+      }),
     });
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.detail || "Не удалось получить ответ от backend.");
-    }
+    state.lastAnalysis = data;
     renderResults(data);
   } catch (error) {
     showError(error.message);
@@ -205,14 +423,13 @@ async function analyzeTasks() {
 
 function renderResults(data) {
   elements.resultsSection.classList.remove("hidden");
+  elements.exportActions.classList.remove("hidden");
   elements.overviewSummary.textContent = data.overview.summary;
   elements.overviewMeta.textContent = `${data.overview.total_tasks} задач · ${data.overview.total_estimated_hours} ч · ${data.overview.working_hours_per_day} ч в день`;
-
   renderPriorities(data.prioritized_tasks);
   renderPlan(data.day_plan);
   renderProjects(data.project_summaries);
   renderRecommendations(data.recommendations);
-
   elements.resultsSection.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -239,7 +456,7 @@ function renderPriorities(items) {
       <p>${escapeHtml(item.priority_reason)}</p>
       <p>Слот: ${escapeHtml(item.recommended_time_block)} · Дедлайн: ${escapeHtml(item.deadline)} · До срока: ${item.days_until_deadline} дн.</p>
       ${item.risk ? `<p>Риск: ${escapeHtml(item.risk)}</p>` : ""}
-      ${item.github_url ? `<a class="github-link" href="${item.github_url}" target="_blank" rel="noreferrer">GitHub проекта</a>` : ""}
+      ${buildSafeExternalLink(item.github_url, "GitHub проекта")}
     `;
     elements.prioritiesOutput.appendChild(card);
   });
@@ -254,14 +471,7 @@ function renderPlan(items) {
   items.forEach((item) => {
     const card = document.createElement("article");
     card.className = "plan-item";
-    const tasksMarkup = item.tasks
-      .map((task) => `<li>${escapeHtml(task.title)} · ${task.planned_hours} ч · ${statusLabels[task.status]}</li>`)
-      .join("");
-    card.innerHTML = `
-      <h3 class="priority-title">${escapeHtml(item.day_label)}${item.date ? ` · ${escapeHtml(item.date)}` : ""}</h3>
-      <p>Запланировано ${item.total_planned_hours} ч.</p>
-      <ul class="plan-task-list">${tasksMarkup}</ul>
-    `;
+    card.innerHTML = `<h3 class="priority-title">${escapeHtml(item.day_label)}${item.date ? ` · ${escapeHtml(item.date)}` : ""}</h3><p>Запланировано ${item.total_planned_hours} ч.</p><ul class="plan-task-list">${item.tasks.map((task) => `<li>${escapeHtml(task.title)} · ${task.planned_hours} ч · ${statusLabels[task.status]}</li>`).join("")}</ul>`;
     elements.planOutput.appendChild(card);
   });
 }
@@ -286,7 +496,7 @@ function renderProjects(items) {
         </div>
       </div>
       <p>Todo: ${item.todo_count} · In progress: ${item.in_progress_count} · Blocked: ${item.blocked_count} · Done: ${item.done_count}</p>
-      ${item.github_url ? `<a class="github-link" href="${item.github_url}" target="_blank" rel="noreferrer">Открыть репозиторий</a>` : ""}
+      ${buildSafeExternalLink(item.github_url, "Открыть репозиторий")}
     `;
     elements.projectsOutput.appendChild(card);
   });
@@ -305,60 +515,195 @@ function renderRecommendations(items) {
   });
 }
 
-function loadDemoData() {
-  state.tasks = [
-    {
-      id: "task-001",
-      title: "Исправить баг в форме заявки",
-      description: "Починить валидацию email и отправку в CRM.",
-      project: "Client Beta CRM",
-      client: "Beta",
-      github_url: "https://github.com/example/client-beta-crm",
-      type: "development",
-      deadline: addDays(today, 1),
-      estimated_hours: 2,
-      importance: "critical",
-      status: "in_progress",
-      tags: ["backend", "crm"],
-      dependencies: [],
-      notes: "Ошибка влияет на лиды.",
-    },
-    {
-      id: "task-002",
-      title: "Подготовить текст для лендинга",
-      description: "Сделать первый экран и блок преимуществ.",
-      project: "Alpha Landing",
-      client: "Alpha",
-      github_url: "https://github.com/example/alpha-landing",
-      type: "content",
-      deadline: addDays(today, 2),
-      estimated_hours: 3,
-      importance: "high",
-      status: "todo",
-      tags: ["copywriting"],
-      dependencies: [],
-      notes: "Сначала уточнить tone of voice.",
-    },
-    {
-      id: "task-003",
-      title: "Собрать недельный рекламный отчёт",
-      description: "Сводка по метрикам и выводам.",
-      project: "Gamma Ads",
-      client: "Gamma",
-      github_url: "https://github.com/example/gamma-ads",
-      type: "analytics",
-      deadline: addDays(today, 4),
-      estimated_hours: 2.5,
-      importance: "medium",
-      status: "todo",
-      tags: ["analytics"],
-      dependencies: [],
-      notes: "Нужны данные из Google Sheets.",
-    },
+function buildSafeExternalLink(url, label) {
+  if (!url || !isValidUrl(url)) return "";
+  return `<a class="github-link" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(label)}</a>`;
+}
+
+function exportResultsToCsv() {
+  if (!state.lastAnalysis) {
+    showError("Сначала выполни анализ, потом экспортируй результат.");
+    return;
+  }
+  const lines = [
+    ["Summary", state.lastAnalysis.overview.summary],
+    [],
+    ["Recommended order", "Title", "Project", "Priority", "Status", "Deadline", "Reason", "Risk"],
+    ...state.lastAnalysis.prioritized_tasks.map((task) => [
+      task.recommended_order, task.title, task.project || "", task.ai_priority, task.status, task.deadline, task.priority_reason, task.risk || "",
+    ]),
+    [],
+    ["Recommendations"],
+    ...state.lastAnalysis.recommendations.map((item) => [item]),
   ];
-  state.counter = 4;
-  renderTaskList();
-  showError("");
+  const csvContent = lines.map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""').replaceAll("\r", "").replaceAll("\n", "\\n")}"`).join(",")).join("\n");
+  downloadBlob(new Blob([csvContent], { type: "text/csv;charset=utf-8" }), "analysis-results.csv");
+}
+
+function exportResultsToPdf() {
+  if (!state.lastAnalysis) {
+    showError("Сначала выполни анализ, потом экспортируй результат.");
+    return;
+  }
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const contentWidth = pageWidth - margin * 2;
+    let y = margin;
+
+    const font = "helvetica";
+    const fontSizeTitle = 22;
+    const fontSizeHeading = 16;
+    const fontSizeSubheading = 12;
+    const fontSizeBody = 10;
+    const lineSpacing = 1.4;
+
+    function checkNewPage(requiredHeight) {
+      if (y + requiredHeight > pageHeight - margin) {
+        doc.addPage();
+        y = margin;
+      }
+    }
+
+    // Title
+    doc.setFontSize(fontSizeTitle);
+    doc.setFont(font, "bold");
+    doc.text("Freelance Flow Report", pageWidth / 2, y, { align: "center" });
+    y += 10;
+
+    // Date
+    doc.setFontSize(fontSizeSubheading);
+    doc.setFont(font, "normal");
+    doc.text(new Date(state.lastAnalysis.generated_at).toLocaleString("ru-RU"), pageWidth / 2, y, { align: "center" });
+    y += 12;
+
+    // Overview
+    checkNewPage(25);
+    doc.setFontSize(fontSizeHeading);
+    doc.setFont(font, "bold");
+    doc.text("Overview", margin, y);
+    y += 7;
+
+    doc.setFontSize(fontSizeBody);
+    doc.setFont(font, "normal");
+    const summaryLines = doc.splitTextToSize(state.lastAnalysis.overview.summary, contentWidth);
+    checkNewPage(summaryLines.length * fontSizeBody * lineSpacing + 5);
+    doc.text(summaryLines, margin, y);
+    y += summaryLines.length * fontSizeBody * lineSpacing + 5;
+
+    // Overview meta
+    doc.setFontSize(fontSizeSubheading);
+    const overviewMeta = `${state.lastAnalysis.overview.total_tasks} tasks · ${state.lastAnalysis.overview.total_estimated_hours} hrs · ${state.lastAnalysis.overview.working_hours_per_day} hrs/day`;
+    doc.text(overviewMeta, margin, y);
+    y += 10;
+
+    // Priorities section
+    checkNewPage(20);
+    doc.setFontSize(fontSizeHeading);
+    doc.setFont(font, "bold");
+    doc.text("Priorities", margin, y);
+    y += 8;
+
+    doc.setFontSize(fontSizeBody);
+    doc.setFont(font, "normal");
+
+    state.lastAnalysis.prioritized_tasks.forEach((task) => {
+      const taskBlockHeight = 35;
+      checkNewPage(taskBlockHeight);
+
+      doc.setFont(font, "bold");
+      const taskTitle = `${task.recommended_order}. ${task.title}`;
+      doc.text(taskTitle, margin, y);
+      y += 5;
+
+      doc.setFont(font, "normal");
+      doc.setFontSize(fontSizeBody - 1);
+      doc.text(`Priority: ${task.ai_priority} | Deadline: ${task.deadline} | Day: ${task.recommended_day}`, margin, y);
+      y += 5;
+
+      const reasonLines = doc.splitTextToSize(task.priority_reason, contentWidth);
+      checkNewPage(reasonLines.length * (fontSizeBody - 1) * lineSpacing + 8);
+      doc.text(reasonLines, margin + 2, y);
+      y += reasonLines.length * (fontSizeBody - 1) * lineSpacing + 8;
+
+      if (task.risk) {
+        doc.setFont(font, "italic");
+        doc.text(`Risk: ${task.risk}`, margin + 2, y);
+        y += 6;
+      }
+
+      doc.setFontSize(fontSizeBody);
+      y += 2;
+    });
+
+    // Recommendations section
+    checkNewPage(25);
+    doc.setFontSize(fontSizeHeading);
+    doc.setFont(font, "bold");
+    doc.text("Recommendations", margin, y);
+    y += 8;
+
+    doc.setFontSize(fontSizeBody);
+    doc.setFont(font, "normal");
+
+    state.lastAnalysis.recommendations.forEach((item) => {
+      const recLines = doc.splitTextToSize(`• ${item}`, contentWidth);
+      checkNewPage(recLines.length * fontSizeBody * lineSpacing + 5);
+      doc.text(recLines, margin, y);
+      y += recLines.length * fontSizeBody * lineSpacing + 3;
+    });
+
+    // Save PDF
+    doc.save("freelance-flow-report.pdf");
+  } catch (error) {
+    showError(`Ошибка при создании PDF: ${error.message}`);
+  }
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function loadDemoData() {
+  const demoTasks = [
+    { id: "task-001", title: "Исправить баг в форме заявки", description: "Починить валидацию email и отправку в CRM.", project: "Client Beta CRM", client: "Beta", github_url: "https://github.com/example/client-beta-crm", type: "development", deadline: addDays(today, 1), estimated_hours: 2, importance: "critical", status: "in_progress", archived: false, tags: ["backend", "crm"], dependencies: [], notes: "Ошибка влияет на лиды." },
+    { id: "task-002", title: "Подготовить текст для лендинга", description: "Сделать первый экран и блок преимуществ.", project: "Alpha Landing", client: "Alpha", github_url: "https://github.com/example/alpha-landing", type: "content", deadline: addDays(today, 2), estimated_hours: 3, importance: "high", status: "todo", archived: false, tags: ["copywriting"], dependencies: [], notes: "Сначала уточнить tone of voice." },
+    { id: "task-003", title: "Собрать недельный рекламный отчет", description: "Сводка по метрикам и выводам.", project: "Gamma Ads", client: "Gamma", github_url: "https://github.com/example/gamma-ads", type: "analytics", deadline: addDays(today, 4), estimated_hours: 2.5, importance: "medium", status: "todo", archived: false, tags: ["analytics"], dependencies: [], notes: "Нужны данные из Google Sheets." },
+    { id: "task-004", title: "Подготовить дизайн обновленного дашборда", description: "Собрать макет для нового блока статистики.", project: "Delta Dashboard", client: "Delta", github_url: "https://github.com/example/delta-dashboard", type: "design", deadline: addDays(today, 6), estimated_hours: 5, importance: "medium", status: "todo", archived: false, tags: ["design", "ui"], dependencies: [], notes: "Согласовать с заказчиком до конца недели." },
+    { id: "task-005", title: "Обновить план спринта", description: "Уточнить приоритеты и зависимости по команде.", project: "Internal Ops", client: "Internal", github_url: "https://github.com/example/internal-ops", type: "management", deadline: addDays(today, 3), estimated_hours: 1.5, importance: "high", status: "blocked", archived: false, tags: ["planning"], dependencies: ["task-003"], notes: "Ждем входные данные по отчету." },
+    { id: "task-006", title: "Проверить новую onboarding-цепочку", description: "Провести ручное тестирование писем и ссылок.", project: "Product Emails", client: "Omega", github_url: "https://github.com/example/product-emails", type: "analytics", deadline: addDays(today, 5), estimated_hours: 2, importance: "low", status: "todo", archived: false, tags: ["qa", "email"], dependencies: [], notes: "После релиза сверить клики." },
+  ];
+  try {
+    const data = await requestJson(TASKS_API_URL, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tasks: demoTasks }),
+    });
+    state.tasks = Array.isArray(data.tasks) ? data.tasks : demoTasks;
+    state.counter = getNextTaskCounter(state.tasks);
+    state.currentPage = 1;
+    clearTaskForm();
+    renderTaskList();
+    showError("");
+  } catch (error) {
+    showError(error.message);
+  }
+}
+
+function replaceTaskInState(updatedTask) {
+  state.tasks = state.tasks.map((task) => (task.id === updatedTask.id ? updatedTask : task));
 }
 
 function setLoading(isLoading) {
@@ -381,12 +726,7 @@ function readOptionalNumber(elementId) {
   return value ? Number(value) : null;
 }
 
-function splitList(value) {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
+const splitList = (value) => value.split(",").map((item) => item.trim()).filter(Boolean);
 
 function isValidUrl(value) {
   try {
@@ -403,13 +743,36 @@ function addDays(dateString, days) {
   return date.toISOString().split("T")[0];
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function getTotalPages(tasks) {
+  return Math.max(1, Math.ceil(tasks.length / TASKS_PER_PAGE));
 }
 
-renderTaskList();
+function buildTaskId() {
+  let candidate = "";
+  do {
+    candidate = `task-${String(state.counter).padStart(3, "0")}`;
+    state.counter += 1;
+  } while (state.tasks.some((task) => task.id === candidate));
+  return candidate;
+}
+
+function getNextTaskCounter(tasks) {
+  return tasks.reduce((maxValue, task) => {
+    const match = /^task-(\d+)$/.exec(task.id);
+    return match ? Math.max(maxValue, Number(match[1])) : maxValue;
+  }, 0) + 1;
+}
+
+async function requestJson(url, options = {}) {
+  const response = await fetch(url, options);
+  if (response.status === 204) return null;
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.detail || "Не удалось выполнить запрос к backend.");
+  return data;
+}
+
+function escapeHtml(value) {
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+}
+
+initializeApp();

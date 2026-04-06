@@ -42,6 +42,7 @@ class TaskInput(BaseModel):
     estimated_hours: Annotated[float | None, Field(gt=0, le=24)] = None
     importance: TaskImportance = "medium"
     status: TaskStatus = "todo"
+    archived: bool = False
     tags: list[str] = Field(default_factory=list)
     dependencies: list[str] = Field(default_factory=list)
     notes: str | None = None
@@ -54,6 +55,14 @@ class AnalyzeRequest(BaseModel):
 
     user_context: UserContext
     tasks: Annotated[list[TaskInput], Field(min_length=1)]
+
+
+class TaskCollectionPayload(BaseModel):
+    """Task list used by persistence endpoints."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tasks: list[TaskInput] = Field(default_factory=list)
 
 
 class EnrichedTask(TaskInput):
@@ -76,7 +85,7 @@ class LlmPrioritizedTask(BaseModel):
     recommended_day: NonEmptyStr
     recommended_time_block: NonEmptyStr
     should_do_today: bool
-    risk: str | None = None
+    risk: str | None
 
 
 class LlmDayPlanTask(BaseModel):
@@ -95,8 +104,8 @@ class LlmDayPlanEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     day_label: NonEmptyStr
-    date: str | None = None
-    tasks: list[LlmDayPlanTask] = Field(default_factory=list)
+    date: str | None
+    tasks: list[LlmDayPlanTask]
 
 
 class LlmTaskAnalysis(BaseModel):
@@ -105,9 +114,9 @@ class LlmTaskAnalysis(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     summary: NonEmptyStr
-    prioritized_tasks: list[LlmPrioritizedTask] = Field(default_factory=list)
-    day_plan: list[LlmDayPlanEntry] = Field(default_factory=list)
-    recommendations: list[NonEmptyStr] = Field(default_factory=list)
+    prioritized_tasks: list[LlmPrioritizedTask]
+    day_plan: list[LlmDayPlanEntry]
+    recommendations: list[NonEmptyStr]
 
 
 class AnalysisOverview(BaseModel):

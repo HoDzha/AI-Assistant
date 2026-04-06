@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
 import time
+from hashlib import sha256
+
 from openai import (
     APIConnectionError,
-    APITimeoutError,
     APIError,
+    APITimeoutError,
     AuthenticationError,
     BadRequestError,
     InternalServerError,
@@ -21,6 +24,7 @@ from openai.types.responses import (
 from app.core.config import Settings
 from app.core.logging import get_logger
 from app.models.api import EnrichedTask, LlmTaskAnalysis, UserContext
+from app.services.analysis_cache import InMemoryAnalysisCache
 from app.services.prompt_builder import build_system_prompt, build_user_prompt
 
 
@@ -42,9 +46,14 @@ class OpenAIResponseError(RuntimeError):
 class OpenAITaskAnalyzer:
     """Typed wrapper around the OpenAI Responses API."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        cache: InMemoryAnalysisCache | None = None,
+    ) -> None:
         self._settings = settings
         self._client: OpenAI | None = None
+        self._cache = cache
 
     def analyze_tasks(
         self,
@@ -53,7 +62,20 @@ class OpenAITaskAnalyzer:
     ) -> LlmTaskAnalysis:
         """Send tasks to OpenAI and return a structured analysis."""
 
+        cache_key = self._cache_key(user_context, tasks)
+        if self._cache is not None:
+            cached_response = self._cache.get(cache_key)
+            if cached_response is not None:
+                logger.info("Using cached LLM analysis response.")
+                return self._parse_analysis(cached_response)
+
         response_text = self._request_analysis(user_context, tasks)
+        parsed = self._parse_analysis(response_text)
+        if self._cache is not None:
+            self._cache.set(cache_key, response_text)
+        return parsed
+
+    def _parse_analysis(self, response_text: str) -> LlmTaskAnalysis:
         try:
             return LlmTaskAnalysis.model_validate_json(response_text)
         except ValueError as exc:
@@ -87,6 +109,12 @@ class OpenAITaskAnalyzer:
                 if not output_text:
                     raise OpenAIResponseError("Модель не вернула текст результата.")
                 return output_text
+            except BadRequestError as exc:
+                raise OpenAIResponseError(f"OpenAI отклонил запрос: {exc}") from exc
+            except (AuthenticationError, PermissionDeniedError) as exc:
+                raise OpenAIConfigurationError(
+                    "Проверьте OPENAI_API_KEY и права доступа к OpenAI API."
+                ) from exc
             except (
                 APIConnectionError,
                 APITimeoutError,
@@ -107,14 +135,6 @@ class OpenAITaskAnalyzer:
                     delay,
                 )
                 time.sleep(delay)
-            except (AuthenticationError, PermissionDeniedError) as exc:
-                raise OpenAIConfigurationError(
-                    "Проверьте OPENAI_API_KEY и права доступа к OpenAI API."
-                ) from exc
-            except BadRequestError as exc:
-                raise OpenAIResponseError(
-                    "Запрос к OpenAI API отклонён из-за некорректных параметров."
-                ) from exc
 
         raise OpenAITransientError("OpenAI API временно недоступен.")
 
@@ -130,9 +150,19 @@ class OpenAITaskAnalyzer:
 
         self._client = OpenAI(
             api_key=api_key_secret.get_secret_value(),
+            base_url=self._settings.openai_base_url,
             timeout=self._settings.openai_request_timeout_seconds,
         )
         return self._client
+
+    def _cache_key(self, user_context: UserContext, tasks: list[EnrichedTask]) -> str:
+        payload = {
+            "model": self._settings.openai_model,
+            "user_context": user_context.model_dump(mode="json"),
+            "tasks": [task.model_dump(mode="json") for task in tasks],
+        }
+        serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        return sha256(serialized.encode("utf-8")).hexdigest()
 
     @staticmethod
     def _response_text_format() -> ResponseTextConfigParam:
