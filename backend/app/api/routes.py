@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.core.config import Settings, get_settings
 from app.models.api import (
@@ -21,6 +21,7 @@ from app.services.openai_client import (
     OpenAITaskAnalyzer,
     OpenAITransientError,
 )
+from app.services.pdf_generator import generate_analysis_pdf
 from app.services.task_service import TaskAnalysisService
 from app.storage import (
     DuplicateTaskError,
@@ -202,3 +203,38 @@ def analyze_tasks(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
+
+
+@router.post("/export-pdf")
+def export_analysis_pdf(
+    request: AnalyzeRequest,
+    service: Annotated[TaskAnalysisService, Depends(get_task_service)],
+) -> Response:
+    """Analyze tasks and return a PDF report with Cyrillic support."""
+
+    try:
+        analysis = service.analyze(request)
+    except OpenAIConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+    except OpenAITransientError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except OpenAIResponseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+    pdf_bytes = generate_analysis_pdf(analysis)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": 'attachment; filename="freelance-flow-report.pdf"',
+        },
+    )

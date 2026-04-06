@@ -546,123 +546,37 @@ function exportResultsToPdf() {
     return;
   }
 
-  try {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: "mm", format: "a4" });
-
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 15;
-    const contentWidth = pageWidth - margin * 2;
-    let y = margin;
-
-    const font = "helvetica";
-    const fontSizeTitle = 22;
-    const fontSizeHeading = 16;
-    const fontSizeSubheading = 12;
-    const fontSizeBody = 10;
-    const lineSpacing = 1.4;
-
-    function checkNewPage(requiredHeight) {
-      if (y + requiredHeight > pageHeight - margin) {
-        doc.addPage();
-        y = margin;
-      }
-    }
-
-    // Title
-    doc.setFontSize(fontSizeTitle);
-    doc.setFont(font, "bold");
-    doc.text("Freelance Flow Report", pageWidth / 2, y, { align: "center" });
-    y += 10;
-
-    // Date
-    doc.setFontSize(fontSizeSubheading);
-    doc.setFont(font, "normal");
-    doc.text(new Date(state.lastAnalysis.generated_at).toLocaleString("ru-RU"), pageWidth / 2, y, { align: "center" });
-    y += 12;
-
-    // Overview
-    checkNewPage(25);
-    doc.setFontSize(fontSizeHeading);
-    doc.setFont(font, "bold");
-    doc.text("Overview", margin, y);
-    y += 7;
-
-    doc.setFontSize(fontSizeBody);
-    doc.setFont(font, "normal");
-    const summaryLines = doc.splitTextToSize(state.lastAnalysis.overview.summary, contentWidth);
-    checkNewPage(summaryLines.length * fontSizeBody * lineSpacing + 5);
-    doc.text(summaryLines, margin, y);
-    y += summaryLines.length * fontSizeBody * lineSpacing + 5;
-
-    // Overview meta
-    doc.setFontSize(fontSizeSubheading);
-    const overviewMeta = `${state.lastAnalysis.overview.total_tasks} tasks · ${state.lastAnalysis.overview.total_estimated_hours} hrs · ${state.lastAnalysis.overview.working_hours_per_day} hrs/day`;
-    doc.text(overviewMeta, margin, y);
-    y += 10;
-
-    // Priorities section
-    checkNewPage(20);
-    doc.setFontSize(fontSizeHeading);
-    doc.setFont(font, "bold");
-    doc.text("Priorities", margin, y);
-    y += 8;
-
-    doc.setFontSize(fontSizeBody);
-    doc.setFont(font, "normal");
-
-    state.lastAnalysis.prioritized_tasks.forEach((task) => {
-      const taskBlockHeight = 35;
-      checkNewPage(taskBlockHeight);
-
-      doc.setFont(font, "bold");
-      const taskTitle = `${task.recommended_order}. ${task.title}`;
-      doc.text(taskTitle, margin, y);
-      y += 5;
-
-      doc.setFont(font, "normal");
-      doc.setFontSize(fontSizeBody - 1);
-      doc.text(`Priority: ${task.ai_priority} | Deadline: ${task.deadline} | Day: ${task.recommended_day}`, margin, y);
-      y += 5;
-
-      const reasonLines = doc.splitTextToSize(task.priority_reason, contentWidth);
-      checkNewPage(reasonLines.length * (fontSizeBody - 1) * lineSpacing + 8);
-      doc.text(reasonLines, margin + 2, y);
-      y += reasonLines.length * (fontSizeBody - 1) * lineSpacing + 8;
-
-      if (task.risk) {
-        doc.setFont(font, "italic");
-        doc.text(`Risk: ${task.risk}`, margin + 2, y);
-        y += 6;
-      }
-
-      doc.setFontSize(fontSizeBody);
-      y += 2;
-    });
-
-    // Recommendations section
-    checkNewPage(25);
-    doc.setFontSize(fontSizeHeading);
-    doc.setFont(font, "bold");
-    doc.text("Recommendations", margin, y);
-    y += 8;
-
-    doc.setFontSize(fontSizeBody);
-    doc.setFont(font, "normal");
-
-    state.lastAnalysis.recommendations.forEach((item) => {
-      const recLines = doc.splitTextToSize(`• ${item}`, contentWidth);
-      checkNewPage(recLines.length * fontSizeBody * lineSpacing + 5);
-      doc.text(recLines, margin, y);
-      y += recLines.length * fontSizeBody * lineSpacing + 3;
-    });
-
-    // Save PDF
-    doc.save("freelance-flow-report.pdf");
-  } catch (error) {
-    showError(`Ошибка при создании PDF: ${error.message}`);
+  const activeTasks = state.tasks.filter((task) => !task.archived);
+  if (!activeTasks.length) {
+    showError("Нет активных задач для экспорта.");
+    return;
   }
+
+  const body = JSON.stringify({
+    user_context: {
+      current_date: elements.ctxDate.value || today,
+      working_hours_per_day: Number(elements.ctxHours.value) || 6,
+      user_name: elements.ctxName.value.trim() || null,
+      work_days: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    },
+    tasks: activeTasks,
+  });
+
+  fetch(`${API_BASE_URL}/export-pdf`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+  })
+    .then((response) => {
+      if (!response.ok) throw new Error("Backend вернул ошибку при генерации PDF.");
+      return response.blob();
+    })
+    .then((blob) => {
+      downloadBlob(blob, "freelance-flow-report.pdf");
+    })
+    .catch((error) => {
+      showError(error.message);
+    });
 }
 
 function downloadBlob(blob, filename) {

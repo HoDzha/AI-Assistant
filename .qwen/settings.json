@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python *)",
       "Bash(timeout *)",
-      "Bash(start *)"
+      "Bash(start *)",
+      "Bash(.venv\\scripts\\python.exe *)"
     ]
   },
   "$version": 3
