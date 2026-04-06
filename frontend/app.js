@@ -537,7 +537,10 @@ function exportResultsToCsv() {
     ...state.lastAnalysis.recommendations.map((item) => [item]),
   ];
   const csvContent = lines.map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""').replaceAll("\r", "").replaceAll("\n", "\\n")}"`).join(",")).join("\n");
-  downloadBlob(new Blob([csvContent], { type: "text/csv;charset=utf-8" }), "analysis-results.csv");
+  // UTF-8 BOM для корректного открытия в Excel на Windows
+  const bom = new Uint8Array([0xef, 0xbb, 0xbf]);
+  const blob = new Blob([bom, csvContent], { type: "text/csv;charset=utf-8" });
+  downloadBlob(blob, "analysis-results.csv");
 }
 
 function exportResultsToPdf() {

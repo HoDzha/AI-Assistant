@@ -4,7 +4,12 @@
       "Bash(python *)",
       "Bash(timeout *)",
       "Bash(start *)",
-      "Bash(.venv\\scripts\\python.exe *)"
+      "Bash(.venv\\scripts\\python.exe *)",
+      "Bash(curl *)",
+      "Bash(echo.)",
+      "Bash(type *)",
+      "Bash(findstr *)",
+      "Bash(@echo *)"
     ]
   },
   "$version": 3
