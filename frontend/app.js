@@ -5,6 +5,8 @@ const today = new Date().toISOString().split("T")[0];
 const statusLabels = { todo: "К выполнению", in_progress: "В процессе", blocked: "Заблокировано", done: "Завершено" };
 const projectStatusLabels = { planned: "Планируется", in_progress: "В работе", attention_needed: "Требует внимания", done: "Завершено" };
 const priorityLabels = { low: "Низкий", medium: "Средний", high: "Высокий", critical: "Критический" };
+const priorityWeight = { critical: 4, high: 3, medium: 2, low: 1 };
+const actionIcons = { edit: "✏️", duplicate: "📋", archive: "📦", unarchive: "📤", delete: "🗑️" };
 
 const state = {
   tasks: [],
@@ -12,7 +14,7 @@ const state = {
   currentPage: 1,
   lastAnalysis: null,
   editingTaskId: null,
-  filters: { search: "", status: "all", project: "all", showArchived: false },
+  filters: { search: "", status: "all", project: "all", showArchived: false, sort: "deadline-asc" },
 };
 
 const elements = {
@@ -26,6 +28,7 @@ const elements = {
   taskSearch: document.getElementById("task-search"),
   taskStatusFilter: document.getElementById("task-status-filter"),
   taskProjectFilter: document.getElementById("task-project-filter"),
+  taskSort: document.getElementById("task-sort"),
   taskShowArchived: document.getElementById("task-show-archived"),
   clearFiltersButton: document.getElementById("clear-filters-button"),
   addTaskButton: document.getElementById("add-task-button"),
@@ -37,6 +40,13 @@ const elements = {
   taskFormTitle: document.getElementById("task-form-title"),
   taskFormDescription: document.getElementById("task-form-description"),
   taskFormMode: document.getElementById("task-form-mode"),
+  formToggle: document.getElementById("form-toggle"),
+  formToggleIcon: document.getElementById("form-toggle-icon"),
+  formToggleLabel: document.getElementById("form-toggle-label"),
+  formBody: document.getElementById("form-body"),
+  filterToggle: document.getElementById("filter-toggle"),
+  filterToggleIcon: document.getElementById("filter-toggle-icon"),
+  filterBody: document.getElementById("filter-body"),
   resultsSection: document.getElementById("results-section"),
   overviewSummary: document.getElementById("overview-summary"),
   overviewMeta: document.getElementById("overview-meta"),
@@ -47,6 +57,7 @@ const elements = {
   exportActions: document.getElementById("export-actions"),
   exportCsvButton: document.getElementById("export-csv-button"),
   exportPdfButton: document.getElementById("export-pdf-button"),
+  toastContainer: document.getElementById("toast-container"),
 };
 
 const formFieldIds = [
@@ -62,6 +73,7 @@ const formFieldIds = [
   "task-notes",
 ];
 
+// ---- Initialization ----
 elements.ctxDate.value = today;
 elements.addTaskButton.addEventListener("click", submitTaskForm);
 elements.clearTaskButton.addEventListener("click", clearTaskForm);
@@ -73,24 +85,62 @@ elements.taskSearch.addEventListener("input", (event) => updateFilter("search", 
 elements.taskStatusFilter.addEventListener("change", (event) => updateFilter("status", event.target.value));
 elements.taskProjectFilter.addEventListener("change", (event) => updateFilter("project", event.target.value));
 elements.taskShowArchived.addEventListener("change", (event) => updateFilter("showArchived", event.target.checked));
+elements.taskSort.addEventListener("change", (event) => updateFilter("sort", event.target.value));
 elements.clearFiltersButton.addEventListener("click", resetFilters);
+elements.formToggle.addEventListener("click", toggleForm);
+elements.filterToggle.addEventListener("click", toggleFilters);
 
+// ---- Toast Notifications ----
+function showToast(message, type = "success") {
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  elements.toastContainer.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+// ---- Collapsible Sections ----
+function toggleForm() {
+  const collapsed = elements.formBody.classList.toggle("collapsed");
+  elements.formToggleIcon.textContent = collapsed ? "▶" : "▼";
+  elements.formToggleLabel.textContent = collapsed ? "Развернуть форму" : "Свернуть форму";
+}
+
+function toggleFilters() {
+  const collapsed = elements.filterBody.classList.toggle("collapsed");
+  elements.filterToggleIcon.textContent = collapsed ? "▶" : "▼";
+  elements.filterToggle.classList.toggle("collapsed", collapsed);
+}
+
+// ---- Filter & Sort ----
 function updateFilter(key, value) {
   state.filters[key] = value;
   state.currentPage = 1;
+  hideResults();
   renderTaskList();
 }
 
 function resetFilters() {
-  state.filters = { search: "", status: "all", project: "all", showArchived: false };
+  state.filters = { search: "", status: "all", project: "all", showArchived: false, sort: "deadline-asc" };
   elements.taskSearch.value = "";
   elements.taskStatusFilter.value = "all";
   elements.taskProjectFilter.value = "all";
   elements.taskShowArchived.checked = false;
+  elements.taskSort.value = "deadline-asc";
   state.currentPage = 1;
   renderTaskList();
+  showToast("Фильтры сброшены", "info");
 }
 
+function hideResults() {
+  if (state.lastAnalysis) {
+    state.lastAnalysis = null;
+    elements.resultsSection.classList.add("hidden");
+    elements.exportActions.classList.add("hidden");
+  }
+}
+
+// ---- App Initialization ----
 async function initializeApp() {
   renderTaskList();
   try {
@@ -98,13 +148,12 @@ async function initializeApp() {
     state.tasks = Array.isArray(data.tasks) ? data.tasks : [];
     state.counter = getNextTaskCounter(state.tasks);
     renderTaskList();
-    showError("");
   } catch (error) {
-    renderTaskList();
-    showError(`Не удалось загрузить сохраненные задачи: ${error.message}`);
+    showToast(`Не удалось загрузить задачи: ${error.message}`, "error");
   }
 }
 
+// ---- Task Form ----
 function buildTaskFromForm(taskId) {
   const title = document.getElementById("task-title").value.trim();
   const type = document.getElementById("task-type").value;
@@ -144,6 +193,7 @@ async function submitTaskForm() {
         body: JSON.stringify(payload),
       });
       replaceTaskInState(saved);
+      showToast(`Задача ${saved.id} обновлена`, "success");
     } else {
       const payload = buildTaskFromForm(buildTaskId());
       const saved = await requestJson(TASKS_API_URL, {
@@ -153,12 +203,13 @@ async function submitTaskForm() {
       });
       state.tasks.push(saved);
       state.counter = getNextTaskCounter(state.tasks);
+      showToast(`Задача «${saved.title}» создана`, "success");
     }
     clearTaskForm();
+    hideResults();
     renderTaskList();
-    showError("");
   } catch (error) {
-    showError(error.message);
+    showToast(error.message, "error");
   }
 }
 
@@ -198,8 +249,13 @@ function fillTaskForm(task) {
   document.getElementById("task-description").value = task.description || "";
   document.getElementById("task-notes").value = task.notes || "";
   setEditingTask(task);
+  // Expand form if collapsed
+  if (elements.formBody.classList.contains("collapsed")) {
+    toggleForm();
+  }
 }
 
+// ---- Render Task List ----
 function renderTaskList() {
   syncProjectFilterOptions();
   const visibleTasks = getVisibleTasks();
@@ -207,6 +263,7 @@ function renderTaskList() {
   state.currentPage = Math.min(state.currentPage, totalPages);
   elements.taskCount.textContent = String(visibleTasks.length);
   elements.taskSummary.textContent = `${state.tasks.filter((task) => !task.archived).length} активных · ${state.tasks.filter((task) => task.archived).length} в архиве`;
+
   if (!visibleTasks.length) {
     elements.taskList.innerHTML =
       '<div class="empty-state">Нет задач под текущие фильтры. Попробуй сбросить фильтры или добавить новую задачу.</div>';
@@ -219,8 +276,9 @@ function renderTaskList() {
   elements.taskList.innerHTML = "";
 
   pageTasks.forEach((task) => {
+    const isOverdue = !task.archived && task.deadline < today;
     const item = document.createElement("article");
-    item.className = `task-item${task.archived ? " task-item-archived" : ""}`;
+    item.className = `task-item${task.archived ? " task-item-archived" : ""}${isOverdue ? " task-overdue" : ""}`;
     item.innerHTML = `
       <div class="task-top">
         <div>
@@ -233,10 +291,10 @@ function renderTaskList() {
           </div>
         </div>
         <div class="task-actions">
-          <button class="action-button" type="button" data-action="edit">Редактировать</button>
-          <button class="action-button" type="button" data-action="duplicate">Дубликат</button>
-          <button class="action-button" type="button" data-action="archive">${task.archived ? "Вернуть" : "В архив"}</button>
-          <button class="action-button danger-action" type="button" data-action="delete">Удалить</button>
+          <button class="action-button" type="button" data-action="edit" title="Редактировать"><span class="action-icon">${actionIcons.edit}</span></button>
+          <button class="action-button" type="button" data-action="duplicate" title="Дубликат"><span class="action-icon">${actionIcons.duplicate}</span></button>
+          <button class="action-button" type="button" data-action="archive" title="${task.archived ? "Вернуть" : "В архив"}"><span class="action-icon">${task.archived ? actionIcons.unarchive : actionIcons.archive}</span></button>
+          <button class="action-button danger-action" type="button" data-action="delete" title="Удалить"><span class="action-icon">${actionIcons.delete}</span></button>
         </div>
       </div>
       <div class="task-body">
@@ -259,7 +317,7 @@ function renderTaskList() {
     });
     item.querySelector("[data-action='duplicate']").addEventListener("click", () => duplicateTask(task));
     item.querySelector("[data-action='archive']").addEventListener("click", () => toggleTaskArchive(task));
-    item.querySelector("[data-action='delete']").addEventListener("click", () => removeTask(task.id));
+    item.querySelector("[data-action='delete']").addEventListener("click", () => removeTask(task));
     item.querySelector("[data-action='status']").addEventListener("change", (event) => updateTask(task.id, { status: event.target.value }));
     elements.taskList.appendChild(item);
   });
@@ -268,7 +326,7 @@ function renderTaskList() {
 }
 
 function getVisibleTasks() {
-  return state.tasks.filter((task) => {
+  let tasks = state.tasks.filter((task) => {
     if (!state.filters.showArchived && task.archived) return false;
     if (state.filters.status !== "all" && task.status !== state.filters.status) return false;
     if (state.filters.project !== "all" && (task.project || "Без проекта") !== state.filters.project) return false;
@@ -285,6 +343,22 @@ function getVisibleTasks() {
     ].join(" ").toLowerCase();
     return haystack.includes(state.filters.search);
   });
+
+  // Sort
+  const sort = state.filters.sort;
+  tasks.sort((a, b) => {
+    switch (sort) {
+      case "deadline-asc": return (a.deadline || "").localeCompare(b.deadline || "");
+      case "deadline-desc": return (b.deadline || "").localeCompare(a.deadline || "");
+      case "importance-desc": return (priorityWeight[b.importance] || 0) - (priorityWeight[a.importance] || 0);
+      case "importance-asc": return (priorityWeight[a.importance] || 0) - (priorityWeight[b.importance] || 0);
+      case "status": return a.status.localeCompare(b.status);
+      case "project": return (a.project || "").localeCompare(b.project || "", "ru");
+      default: return 0;
+    }
+  });
+
+  return tasks;
 }
 
 function syncProjectFilterOptions() {
@@ -335,6 +409,7 @@ function buildPaginationButton(label, disabled, onClick) {
   return button;
 }
 
+// ---- Task CRUD ----
 async function updateTask(taskId, changes) {
   const existingTask = state.tasks.find((task) => task.id === taskId);
   if (!existingTask) return;
@@ -346,10 +421,11 @@ async function updateTask(taskId, changes) {
     });
     replaceTaskInState(saved);
     if (state.editingTaskId === taskId) fillTaskForm(saved);
+    hideResults();
     renderTaskList();
-    showError("");
+    showToast(`Статус задачи обновлён`, "success");
   } catch (error) {
-    showError(error.message);
+    showToast(error.message, "error");
   }
 }
 
@@ -364,40 +440,49 @@ async function duplicateTask(task) {
     state.tasks.push(saved);
     state.counter = getNextTaskCounter(state.tasks);
     state.currentPage = getTotalPages(getVisibleTasks());
+    hideResults();
     renderTaskList();
-    showError("");
+    showToast(`Дубликат «${saved.title}» создан`, "success");
   } catch (error) {
-    showError(error.message);
+    showToast(error.message, "error");
   }
 }
 
 async function toggleTaskArchive(task) {
-  await updateTask(task.id, { archived: !task.archived });
+  const newArchived = !task.archived;
+  try {
+    await updateTask(task.id, { archived: newArchived });
+    showToast(newArchived ? `Задача «${task.title}» отправлена в архив` : `Задача «${task.title}» возвращена из архива`, "info");
+  } catch (error) {
+    showToast(error.message, "error");
+  }
 }
 
-async function removeTask(taskId) {
+async function removeTask(task) {
+  if (!confirm(`Удалить задачу «${task.title}»?\nЭто действие нельзя отменить.`)) return;
   try {
-    await requestJson(`${TASKS_API_URL}/${encodeURIComponent(taskId)}`, { method: "DELETE" });
-    state.tasks = state.tasks.filter((task) => task.id !== taskId);
-    if (state.editingTaskId === taskId) clearTaskForm();
+    await requestJson(`${TASKS_API_URL}/${encodeURIComponent(task.id)}`, { method: "DELETE" });
+    state.tasks = state.tasks.filter((t) => t.id !== task.id);
+    if (state.editingTaskId === task.id) clearTaskForm();
     if ((state.currentPage - 1) * TASKS_PER_PAGE >= getVisibleTasks().length && state.currentPage > 1) {
       state.currentPage -= 1;
     }
+    hideResults();
     renderTaskList();
-    showError("");
+    showToast(`Задача «${task.title}» удалена`, "success");
   } catch (error) {
-    showError(error.message);
+    showToast(error.message, "error");
   }
 }
 
+// ---- Analysis ----
 async function analyzeTasks() {
   const activeTasks = state.tasks.filter((task) => !task.archived);
   if (!activeTasks.length) {
-    showError("Добавь хотя бы одну активную задачу перед анализом.");
+    showToast("Добавь хотя бы одну активную задачу перед анализом.", "error");
     return;
   }
   setLoading(true);
-  showError("");
   try {
     const data = await requestJson(`${API_BASE_URL}/analyze`, {
       method: "POST",
@@ -414,8 +499,9 @@ async function analyzeTasks() {
     });
     state.lastAnalysis = data;
     renderResults(data);
+    showToast("Анализ завершён", "success");
   } catch (error) {
-    showError(error.message);
+    showToast(error.message, "error");
   } finally {
     setLoading(false);
   }
@@ -520,9 +606,10 @@ function buildSafeExternalLink(url, label) {
   return `<a class="github-link" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(label)}</a>`;
 }
 
+// ---- Exports ----
 function exportResultsToCsv() {
   if (!state.lastAnalysis) {
-    showError("Сначала выполни анализ, потом экспортируй результат.");
+    showToast("Сначала выполни анализ, потом экспортируй результат.", "error");
     return;
   }
   const lines = [
@@ -537,24 +624,22 @@ function exportResultsToCsv() {
     ...state.lastAnalysis.recommendations.map((item) => [item]),
   ];
   const csvContent = lines.map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""').replaceAll("\r", "").replaceAll("\n", "\\n")}"`).join(",")).join("\n");
-  // UTF-8 BOM для корректного открытия в Excel на Windows
   const bom = new Uint8Array([0xef, 0xbb, 0xbf]);
   const blob = new Blob([bom, csvContent], { type: "text/csv;charset=utf-8" });
   downloadBlob(blob, "analysis-results.csv");
+  showToast("CSV-файл скачан", "success");
 }
 
 function exportResultsToPdf() {
   if (!state.lastAnalysis) {
-    showError("Сначала выполни анализ, потом экспортируй результат.");
+    showToast("Сначала выполни анализ, потом экспортируй результат.", "error");
     return;
   }
-
   const activeTasks = state.tasks.filter((task) => !task.archived);
   if (!activeTasks.length) {
-    showError("Нет активных задач для экспорта.");
+    showToast("Нет активных задач для экспорта.", "error");
     return;
   }
-
   const body = JSON.stringify({
     user_context: {
       current_date: elements.ctxDate.value || today,
@@ -564,7 +649,7 @@ function exportResultsToPdf() {
     },
     tasks: activeTasks,
   });
-
+  showToast("Генерирую PDF...", "info");
   fetch(`${API_BASE_URL}/export-pdf`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -576,9 +661,10 @@ function exportResultsToPdf() {
     })
     .then((blob) => {
       downloadBlob(blob, "freelance-flow-report.pdf");
+      showToast("PDF-файл скачан", "success");
     })
     .catch((error) => {
-      showError(error.message);
+      showToast(error.message, "error");
     });
 }
 
@@ -593,6 +679,7 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
+// ---- Demo Data ----
 async function loadDemoData() {
   const demoTasks = [
     { id: "task-001", title: "Исправить баг в форме заявки", description: "Починить валидацию email и отправку в CRM.", project: "Client Beta CRM", client: "Beta", github_url: "https://github.com/example/client-beta-crm", type: "development", deadline: addDays(today, 1), estimated_hours: 2, importance: "critical", status: "in_progress", archived: false, tags: ["backend", "crm"], dependencies: [], notes: "Ошибка влияет на лиды." },
@@ -612,13 +699,15 @@ async function loadDemoData() {
     state.counter = getNextTaskCounter(state.tasks);
     state.currentPage = 1;
     clearTaskForm();
+    hideResults();
     renderTaskList();
-    showError("");
+    showToast("Демо-данные загружены", "success");
   } catch (error) {
-    showError(error.message);
+    showToast(error.message, "error");
   }
 }
 
+// ---- Helpers ----
 function replaceTaskInState(updatedTask) {
   state.tasks = state.tasks.map((task) => (task.id === updatedTask.id ? updatedTask : task));
 }

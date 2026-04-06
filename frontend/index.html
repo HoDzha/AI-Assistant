@@ -14,133 +14,136 @@
 </head>
 <body>
   <div class="page-shell">
-    <header class="hero">
-      <p class="hero-kicker">AI Task Manager</p>
-      <h1>Freelance Flow</h1>
-      <p class="hero-copy">
-        Управляй задачами по клиентам, фиксируй статусы, держи под рукой GitHub-ссылки
-        и получай приоритизированный план работы от OpenAI.
-      </p>
+    <!-- Compact Header -->
+    <header class="compact-header">
+      <div class="header-brand">
+        <p class="header-kicker">AI Task Manager</p>
+        <h1>Freelance Flow</h1>
+      </div>
+      <div class="header-context">
+        <label class="inline-field">
+          <span>Дата</span>
+          <input id="ctx-date" type="date">
+        </label>
+        <label class="inline-field">
+          <span>Часы/день</span>
+          <input id="ctx-hours" type="number" min="1" max="16" value="6">
+        </label>
+        <label class="inline-field">
+          <span>Имя</span>
+          <input id="ctx-name" type="text" placeholder="Алексей">
+        </label>
+      </div>
     </header>
 
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Main Layout -->
     <main class="layout">
-      <section class="panel">
-        <div class="panel-heading">
-          <h2>Контекст работы</h2>
-          <p>Заполни параметры рабочего дня и управляй задачами в едином цикле.</p>
-        </div>
-
-        <div class="grid three">
-          <label class="field">
-            <span>Текущая дата</span>
-            <input id="ctx-date" type="date">
-          </label>
-          <label class="field">
-            <span>Часов в день</span>
-            <input id="ctx-hours" type="number" min="1" max="16" value="6">
-          </label>
-          <label class="field">
-            <span>Имя</span>
-            <input id="ctx-name" type="text" placeholder="Алексей">
-          </label>
-        </div>
-
-        <div class="section-divider"></div>
-
-        <div class="panel-heading compact">
-          <div class="title-with-badge">
-            <h2 id="task-form-title">Добавить задачу</h2>
-            <span id="task-form-mode" class="mode-badge">Новая</span>
+      <!-- Left: Task Form -->
+      <section class="panel form-panel">
+        <button id="form-toggle" class="form-toggle" type="button" aria-expanded="true">
+          <span id="form-toggle-icon">▼</span>
+          <span id="form-toggle-label">Свернуть форму</span>
+        </button>
+        <div id="form-body" class="form-body">
+          <div class="panel-heading compact">
+            <div class="title-with-badge">
+              <h2 id="task-form-title">Добавить задачу</h2>
+              <span id="task-form-mode" class="mode-badge">Новая</span>
+            </div>
+            <p id="task-form-description">
+              Используй одну форму для создания и редактирования задач.
+            </p>
           </div>
-          <p id="task-form-description">
-            Используй одну форму для создания и редактирования задач.
-          </p>
-        </div>
 
-        <div class="grid two">
-          <label class="field span-2">
-            <span>Название задачи</span>
-            <input id="task-title" type="text" placeholder="Исправить баг в форме заявки">
-          </label>
-          <label class="field">
-            <span>Проект</span>
-            <input id="task-project" type="text" placeholder="Client Beta CRM">
-          </label>
-          <label class="field">
-            <span>Клиент</span>
-            <input id="task-client" type="text" placeholder="Beta">
-          </label>
-          <label class="field span-2">
-            <span>GitHub-ссылка</span>
-            <input
-              id="task-github"
-              type="url"
-              placeholder="https://github.com/example/project"
-            >
-          </label>
-          <label class="field">
-            <span>Тип задачи</span>
-            <select id="task-type">
-              <option value="">Выбрать</option>
-              <option value="development">Разработка</option>
-              <option value="design">Дизайн</option>
-              <option value="content">Контент</option>
-              <option value="analytics">Аналитика</option>
-              <option value="management">Менеджмент</option>
-              <option value="other">Другое</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Дедлайн</span>
-            <input id="task-deadline" type="date">
-          </label>
-          <label class="field">
-            <span>Оценка в часах</span>
-            <input id="task-hours" type="number" min="0.5" max="24" step="0.5" placeholder="2.5">
-          </label>
-          <label class="field">
-            <span>Важность</span>
-            <select id="task-importance">
-              <option value="low">Низкая</option>
-              <option value="medium" selected>Средняя</option>
-              <option value="high">Высокая</option>
-              <option value="critical">Критическая</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Статус</span>
-            <select id="task-status">
-              <option value="todo">К выполнению</option>
-              <option value="in_progress">В процессе</option>
-              <option value="blocked">Заблокировано</option>
-              <option value="done">Завершено</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Зависимости</span>
-            <input id="task-dependencies" type="text" placeholder="task-001, task-002">
-          </label>
-          <label class="field span-2">
-            <span>Теги</span>
-            <input id="task-tags" type="text" placeholder="frontend, urgent, crm">
-          </label>
-          <label class="field span-2">
-            <span>Описание</span>
-            <textarea id="task-description" placeholder="Краткое содержание задачи"></textarea>
-          </label>
-          <label class="field span-2">
-            <span>Заметки</span>
-            <textarea id="task-notes" placeholder="Дополнительный контекст"></textarea>
-          </label>
-        </div>
+          <div class="grid two">
+            <label class="field span-2">
+              <span>Название задачи</span>
+              <input id="task-title" type="text" placeholder="Исправить баг в форме заявки">
+            </label>
+            <label class="field">
+              <span>Проект</span>
+              <input id="task-project" type="text" placeholder="Client Beta CRM">
+            </label>
+            <label class="field">
+              <span>Клиент</span>
+              <input id="task-client" type="text" placeholder="Beta">
+            </label>
+            <label class="field span-2">
+              <span>GitHub-ссылка</span>
+              <input
+                id="task-github"
+                type="url"
+                placeholder="https://github.com/example/project"
+              >
+            </label>
+            <label class="field">
+              <span>Тип задачи</span>
+              <select id="task-type">
+                <option value="">Выбрать</option>
+                <option value="development">Разработка</option>
+                <option value="design">Дизайн</option>
+                <option value="content">Контент</option>
+                <option value="analytics">Аналитика</option>
+                <option value="management">Менеджмент</option>
+                <option value="other">Другое</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Дедлайн</span>
+              <input id="task-deadline" type="date">
+            </label>
+            <label class="field">
+              <span>Оценка в часах</span>
+              <input id="task-hours" type="number" min="0.5" max="24" step="0.5" placeholder="2.5">
+            </label>
+            <label class="field">
+              <span>Важность</span>
+              <select id="task-importance">
+                <option value="low">Низкая</option>
+                <option value="medium" selected>Средняя</option>
+                <option value="high">Высокая</option>
+                <option value="critical">Критическая</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Статус</span>
+              <select id="task-status">
+                <option value="todo">К выполнению</option>
+                <option value="in_progress">В процессе</option>
+                <option value="blocked">Заблокировано</option>
+                <option value="done">Завершено</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Зависимости</span>
+              <input id="task-dependencies" type="text" placeholder="task-001, task-002">
+            </label>
+            <label class="field span-2">
+              <span>Теги</span>
+              <input id="task-tags" type="text" placeholder="frontend, urgent, crm">
+            </label>
+            <label class="field span-2">
+              <span>Описание</span>
+              <textarea id="task-description" placeholder="Краткое содержание задачи"></textarea>
+            </label>
+            <label class="field span-2">
+              <span>Заметки</span>
+              <textarea id="task-notes" placeholder="Дополнительный контекст"></textarea>
+            </label>
+          </div>
 
-        <div class="button-row">
-          <button id="add-task-button" class="button primary" type="button">Добавить задачу</button>
-          <button id="clear-task-button" class="button secondary" type="button">Очистить поля</button>
-          <button id="load-demo-button" class="button ghost" type="button">Загрузить демо</button>
+          <div class="button-row">
+            <button id="add-task-button" class="button primary" type="button">Добавить задачу</button>
+            <button id="clear-task-button" class="button secondary" type="button">Очистить поля</button>
+            <button id="load-demo-button" class="button ghost" type="button">Загрузить демо</button>
+          </div>
         </div>
       </section>
 
+      <!-- Right: Task List (sticky) -->
       <section class="panel side-panel">
         <div class="panel-heading compact">
           <h2>Список задач</h2>
@@ -148,7 +151,12 @@
           <p id="task-summary" class="support-copy">0 активных · 0 в архиве</p>
         </div>
 
-        <div class="filter-panel">
+        <!-- Collapsible Filters -->
+        <button id="filter-toggle" class="filter-toggle" type="button" aria-expanded="true">
+          <span id="filter-toggle-icon">▼</span>
+          <span>Фильтры и сортировка</span>
+        </button>
+        <div id="filter-body" class="filter-panel">
           <div class="grid two">
             <label class="field span-2">
               <span>Поиск</span>
@@ -170,13 +178,24 @@
                 <option value="all">Все проекты</option>
               </select>
             </label>
+            <label class="field">
+              <span>Сортировка</span>
+              <select id="task-sort">
+                <option value="deadline-asc">По дедлайну ↑</option>
+                <option value="deadline-desc">По дедлайну ↓</option>
+                <option value="importance-desc">По важности ↓</option>
+                <option value="importance-asc">По важности ↑</option>
+                <option value="status">По статусу</option>
+                <option value="project">По проекту</option>
+              </select>
+            </label>
           </div>
           <div class="filter-actions">
             <label class="checkbox-field">
               <input id="task-show-archived" type="checkbox">
               <span>Показать архив</span>
             </label>
-            <button id="clear-filters-button" class="button ghost compact-button" type="button">Сбросить фильтры</button>
+            <button id="clear-filters-button" class="button ghost compact-button" type="button">Сбросить</button>
           </div>
         </div>
 
@@ -191,6 +210,7 @@
       </section>
     </main>
 
+    <!-- Results Section -->
     <section id="results-section" class="results hidden">
       <div class="result-card overview-card">
         <div class="panel-heading compact">
