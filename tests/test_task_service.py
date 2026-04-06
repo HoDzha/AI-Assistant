@@ -9,7 +9,7 @@ import pytest
 
 from app.core.config import Settings
 from app.models.api import EnrichedTask, LlmTaskAnalysis, UserContext
-from app.services.analysis_cache import InMemoryAnalysisCache
+from app.services.analysis_cache import InMemoryAnalysisCache, PersistentAnalysisCache
 from app.services.openai_client import OpenAITaskAnalyzer
 from app.services.task_service import TaskAnalysisService
 from app.storage.factory import build_task_store
@@ -207,3 +207,54 @@ def test_settings_reject_invalid_database_url() -> None:
 def test_task_store_factory_rejects_unsupported_database_engine() -> None:
     with pytest.raises(ValueError):
         build_task_store("postgresql:///freelance-flow")
+
+
+# --- PersistentAnalysisCache tests ---
+
+
+def test_persistent_cache_get_set_clear(tmp_path) -> None:
+    db_path = str(tmp_path / "cache.db")
+    cache = PersistentAnalysisCache(database_path=db_path, ttl_seconds=60, max_entries=10)
+
+    assert cache.get("key-a") is None
+    cache.set("key-a", "value-a")
+    assert cache.get("key-a") == "value-a"
+    cache.clear()
+    assert cache.get("key-a") is None
+
+
+def test_persistent_cache_survives_recreation(tmp_path) -> None:
+    db_path = str(tmp_path / "cache.db")
+    cache = PersistentAnalysisCache(database_path=db_path, ttl_seconds=60, max_entries=10)
+    cache.set("persistent-key", "persistent-value")
+
+    del cache
+    new_cache = PersistentAnalysisCache(database_path=db_path, ttl_seconds=60, max_entries=10)
+    assert new_cache.get("persistent-key") == "persistent-value"
+
+
+def test_persistent_cache_expires_entries(tmp_path) -> None:
+    cache = PersistentAnalysisCache(database_path=str(tmp_path / "cache.db"), ttl_seconds=0, max_entries=2)
+    cache.set("soon", "value")
+    time.sleep(0.01)
+    assert cache.get("soon") is None
+
+
+def test_persistent_cache_evicts_oldest(tmp_path) -> None:
+    cache = PersistentAnalysisCache(database_path=str(tmp_path / "cache.db"), ttl_seconds=3600, max_entries=2)
+    cache.set("first", "one")
+    cache.set("second", "two")
+    cache.set("third", "three")
+
+    assert cache.get("first") is None
+    assert cache.get("second") == "two"
+    assert cache.get("third") == "three"
+
+
+def test_inmemory_cache_clear() -> None:
+    cache = InMemoryAnalysisCache(ttl_seconds=60, max_entries=10)
+    cache.set("x", "1")
+    cache.set("y", "2")
+    cache.clear()
+    assert cache.get("x") is None
+    assert cache.get("y") is None

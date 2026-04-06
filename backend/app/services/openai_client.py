@@ -24,7 +24,7 @@ from openai.types.responses import (
 from app.core.config import Settings
 from app.core.logging import get_logger
 from app.models.api import EnrichedTask, LlmTaskAnalysis, UserContext
-from app.services.analysis_cache import InMemoryAnalysisCache
+from app.services.analysis_cache import AnalysisCacheProto
 from app.services.prompt_builder import build_system_prompt, build_user_prompt
 
 
@@ -49,7 +49,7 @@ class OpenAITaskAnalyzer:
     def __init__(
         self,
         settings: Settings,
-        cache: InMemoryAnalysisCache | None = None,
+        cache: AnalysisCacheProto | None = None,
     ) -> None:
         self._settings = settings
         self._client: OpenAI | None = None

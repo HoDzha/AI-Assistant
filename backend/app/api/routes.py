@@ -14,7 +14,7 @@ from app.models.api import (
     TaskCollectionPayload,
     TaskInput,
 )
-from app.services.analysis_cache import InMemoryAnalysisCache
+from app.services.analysis_cache import AnalysisCacheProto
 from app.services.openai_client import (
     OpenAIConfigurationError,
     OpenAIResponseError,
@@ -22,29 +22,51 @@ from app.services.openai_client import (
     OpenAITransientError,
 )
 from app.services.task_service import TaskAnalysisService
-from app.storage import DuplicateTaskError, TaskNotFoundError, TaskStore, get_configured_task_store
-
+from app.storage import (
+    DuplicateTaskError,
+    TaskNotFoundError,
+    TaskStore,
+    get_analysis_cache,
+    get_configured_task_store,
+)
 
 router = APIRouter()
 
+AnalysisCache = AnalysisCacheProto
+
 
 @lru_cache(maxsize=1)
-def get_llm_cache() -> InMemoryAnalysisCache:
-    """Return a shared in-memory cache for LLM responses."""
+def _get_shared_cache(
+    cache_backend: str,
+    cache_file: str,
+    ttl_seconds: int,
+    max_entries: int,
+) -> AnalysisCache:
+    """Return a singleton analysis cache instance."""
 
-    settings = get_settings()
-    return InMemoryAnalysisCache(
-        ttl_seconds=settings.openai_cache_ttl_seconds,
-        max_entries=settings.openai_cache_max_entries,
+    return get_analysis_cache(cache_backend, cache_file, ttl_seconds, max_entries)
+
+
+def get_analysis_cache_dep(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AnalysisCache:
+    """Return the configured analysis cache for the current request."""
+
+    return _get_shared_cache(
+        settings.openai_cache_backend,
+        settings.openai_cache_file,
+        settings.openai_cache_ttl_seconds,
+        settings.openai_cache_max_entries,
     )
 
 
 def get_task_service(
     settings: Annotated[Settings, Depends(get_settings)],
+    cache: Annotated[AnalysisCache, Depends(get_analysis_cache_dep)],
 ) -> TaskAnalysisService:
-    """Create the task analysis service for a request."""
+    """Create the task analysis service with the configured cache."""
 
-    analyzer = OpenAITaskAnalyzer(settings, cache=get_llm_cache())
+    analyzer = OpenAITaskAnalyzer(settings, cache=cache)
     return TaskAnalysisService(analyzer)
 
 
@@ -79,32 +101,38 @@ def list_tasks(
 def create_task(
     task: TaskInput,
     store: Annotated[TaskStore, Depends(get_task_store)],
+    cache: Annotated[AnalysisCache, Depends(get_analysis_cache_dep)],
 ) -> TaskInput:
-    """Store a single task."""
+    """Store a single task. Invalidates all cached analyses."""
 
     try:
-        return store.create_task(task)
+        result = store.create_task(task)
     except DuplicateTaskError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
+    cache.clear()
+    return result
 
 
 @router.put("/tasks", response_model=TaskCollectionPayload)
 def replace_tasks(
     payload: TaskCollectionPayload,
     store: Annotated[TaskStore, Depends(get_task_store)],
+    cache: Annotated[AnalysisCache, Depends(get_analysis_cache_dep)],
 ) -> TaskCollectionPayload:
-    """Replace the stored task collection."""
+    """Replace the stored task collection. Invalidates all cached analyses."""
 
     try:
-        return TaskCollectionPayload(tasks=store.replace_tasks(payload.tasks))
+        result = TaskCollectionPayload(tasks=store.replace_tasks(payload.tasks))
     except DuplicateTaskError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
+    cache.clear()
+    return result
 
 
 @router.put("/tasks/{task_id}", response_model=TaskInput)
@@ -112,11 +140,12 @@ def update_task(
     task_id: str,
     task: TaskInput,
     store: Annotated[TaskStore, Depends(get_task_store)],
+    cache: Annotated[AnalysisCache, Depends(get_analysis_cache_dep)],
 ) -> TaskInput:
-    """Update a stored task by identifier."""
+    """Update a stored task. Invalidates all cached analyses."""
 
     try:
-        return store.update_task(task_id, task)
+        result = store.update_task(task_id, task)
     except DuplicateTaskError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -127,14 +156,17 @@ def update_task(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+    cache.clear()
+    return result
 
 
 @router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_task(
     task_id: str,
     store: Annotated[TaskStore, Depends(get_task_store)],
+    cache: Annotated[AnalysisCache, Depends(get_analysis_cache_dep)],
 ) -> None:
-    """Delete a stored task by identifier."""
+    """Delete a stored task. Invalidates all cached analyses."""
 
     try:
         store.delete_task(task_id)
@@ -143,6 +175,7 @@ def delete_task(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+    cache.clear()
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)

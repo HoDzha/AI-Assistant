@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python *)",
+      "Bash(timeout *)",
+      "Bash(start *)"
+    ]
+  },
+  "$version": 3
+}

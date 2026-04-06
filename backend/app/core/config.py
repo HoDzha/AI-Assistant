@@ -38,8 +38,10 @@ class Settings(BaseSettings):
     openai_request_timeout_seconds: float = 30.0
     openai_max_attempts: int = 3
     openai_retry_base_delay_seconds: float = 1.0
-    openai_cache_ttl_seconds: int = 900
-    openai_cache_max_entries: int = 128
+    openai_cache_ttl_seconds: int = 3600
+    openai_cache_max_entries: int = 256
+    openai_cache_backend: Literal["memory", "persistent"] = "persistent"
+    openai_cache_file: str = "./data/analysis_cache.db"
 
     @field_validator("openai_base_url")
     @classmethod
@@ -63,6 +65,14 @@ class Settings(BaseSettings):
             if path.name in {"", ".", ".."}:
                 raise ValueError("database_url must point to a database file")
 
+        return value
+
+    @field_validator("openai_cache_file")
+    @classmethod
+    def validate_cache_file(cls, value: str) -> str:
+        path = Path(value)
+        if path.suffix and path.suffix.lower() != ".db":
+            raise ValueError("openai_cache_file should point to a .db SQLite file")
         return value
 
 
