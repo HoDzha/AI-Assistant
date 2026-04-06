@@ -300,38 +300,36 @@ function renderTaskList() {
 
   pageTasks.forEach((task) => {
     const isOverdue = !task.archived && task.deadline < today;
-    const item = document.createElement("article");
+    const item = document.createElement("div");
     item.className = `task-item${task.archived ? " task-item-archived" : ""}${isOverdue ? " task-overdue" : ""}`;
     item.innerHTML = `
-      <div class="task-top">
-        <div>
+      <div class="task-info">
+        <div class="task-title-row">
           <h3 class="task-title">${escapeHtml(task.title)}</h3>
           <div class="meta-row">
             <span class="badge status-${task.status}">${statusLabels[task.status]}</span>
             <span class="badge priority-${task.importance}">${priorityLabels[task.importance]}</span>
-            <span class="badge">${escapeHtml(task.type)}</span>
             ${task.archived ? '<span class="badge archived-badge">Архив</span>' : ""}
           </div>
         </div>
-        <div class="task-actions">
-          <button class="action-button" type="button" data-action="edit" title="Редактировать"><span class="action-icon">${actionIcons.edit}</span></button>
-          <button class="action-button" type="button" data-action="duplicate" title="Дубликат"><span class="action-icon">${actionIcons.duplicate}</span></button>
-          <button class="action-button" type="button" data-action="archive" title="${task.archived ? "Вернуть" : "В архив"}"><span class="action-icon">${task.archived ? actionIcons.unarchive : actionIcons.archive}</span></button>
-          <button class="action-button danger-action" type="button" data-action="delete" title="Удалить"><span class="action-icon">${actionIcons.delete}</span></button>
+        <div class="task-meta">
+          <span>${escapeHtml(task.project || "Без проекта")}</span>
+          <span>·</span>
+          <span>${escapeHtml(task.client || "—")}</span>
+          <span>·</span>
+          <span>дедлайн ${escapeHtml(task.deadline)}</span>
+          ${task.estimated_hours ? `<span>·</span><span>${task.estimated_hours} ч</span>` : ""}
+        </div>
+        <div class="task-inline-status">
+          <select class="task-status-inline" data-action="status">${buildStatusOptions(task.status)}</select>
+          ${buildSafeExternalLink(task.github_url, "GitHub")}
         </div>
       </div>
-      <div class="task-body">
-        <p class="task-copy">${escapeHtml(task.project || "Без проекта")} · ${escapeHtml(task.client || "Клиент не указан")} · дедлайн ${escapeHtml(task.deadline)}</p>
-        <div class="task-inline-meta">
-          <span>${task.estimated_hours ? `${task.estimated_hours} ч` : "Без оценки"}</span>
-          <label class="inline-status-control">
-            <span>Статус</span>
-            <select class="task-status-select" data-action="status">${buildStatusOptions(task.status)}</select>
-          </label>
-        </div>
-        ${task.description ? `<p class="task-copy">${escapeHtml(task.description)}</p>` : ""}
-        ${task.tags.length ? `<div class="meta-row compact-meta">${task.tags.map((tag) => `<span class="badge subtle-badge">#${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
-        ${buildSafeExternalLink(task.github_url, "Открыть GitHub")}
+      <div class="task-actions">
+        <button class="action-button" type="button" data-action="edit" title="Редактировать"><span class="action-icon">${actionIcons.edit}</span></button>
+        <button class="action-button" type="button" data-action="duplicate" title="Дубликат"><span class="action-icon">${actionIcons.duplicate}</span></button>
+        <button class="action-button" type="button" data-action="archive" title="${task.archived ? "Вернуть" : "В архив"}"><span class="action-icon">${task.archived ? actionIcons.unarchive : actionIcons.archive}</span></button>
+        <button class="action-button danger-action" type="button" data-action="delete" title="Удалить"><span class="action-icon">${actionIcons.delete}</span></button>
       </div>
     `;
     item.querySelector("[data-action='edit']").addEventListener("click", () => {

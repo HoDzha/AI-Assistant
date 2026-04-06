@@ -39,182 +39,181 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <!-- Main Layout -->
-    <main class="layout">
-      <!-- Left: Task Form -->
-      <section class="panel form-panel">
-        <button id="form-toggle" class="form-toggle" type="button" aria-expanded="true">
-          <span id="form-toggle-icon">▼</span>
-          <span id="form-toggle-label">Свернуть форму</span>
-        </button>
-        <div id="form-body" class="form-body">
-          <div class="panel-heading compact">
-            <div class="title-with-badge">
-              <h2 id="task-form-title">Добавить задачу</h2>
-              <span id="task-form-mode" class="mode-badge">Новая</span>
-            </div>
-            <p id="task-form-description">
-              Используй одну форму для создания и редактирования задач.
-            </p>
-          </div>
-
-          <div class="grid two">
-            <label class="field span-2">
-              <span>Название задачи</span>
-              <input id="task-title" type="text" placeholder="Исправить баг в форме заявки">
-            </label>
-            <label class="field">
-              <span>Проект</span>
-              <input id="task-project" type="text" placeholder="Client Beta CRM">
-            </label>
-            <label class="field">
-              <span>Клиент</span>
-              <input id="task-client" type="text" placeholder="Beta">
-            </label>
-            <label class="field span-2">
-              <span>GitHub-ссылка</span>
-              <input
-                id="task-github"
-                type="url"
-                placeholder="https://github.com/example/project"
-              >
-            </label>
-            <label class="field">
-              <span>Тип задачи</span>
-              <select id="task-type">
-                <option value="">Выбрать</option>
-                <option value="development">Разработка</option>
-                <option value="design">Дизайн</option>
-                <option value="content">Контент</option>
-                <option value="analytics">Аналитика</option>
-                <option value="management">Менеджмент</option>
-                <option value="other">Другое</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Дедлайн</span>
-              <input id="task-deadline" type="date">
-            </label>
-            <label class="field">
-              <span>Оценка в часах</span>
-              <input id="task-hours" type="number" min="0.5" max="24" step="0.5" placeholder="2.5">
-            </label>
-            <label class="field">
-              <span>Важность</span>
-              <select id="task-importance">
-                <option value="low">Низкая</option>
-                <option value="medium" selected>Средняя</option>
-                <option value="high">Высокая</option>
-                <option value="critical">Критическая</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Статус</span>
-              <select id="task-status">
-                <option value="todo">К выполнению</option>
-                <option value="in_progress">В процессе</option>
-                <option value="blocked">Заблокировано</option>
-                <option value="done">Завершено</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Зависимости</span>
-              <input id="task-dependencies" type="text" placeholder="task-001, task-002">
-            </label>
-            <label class="field span-2">
-              <span>Теги</span>
-              <input id="task-tags" type="text" placeholder="frontend, urgent, crm">
-            </label>
-            <label class="field span-2">
-              <span>Описание</span>
-              <textarea id="task-description" placeholder="Краткое содержание задачи"></textarea>
-            </label>
-            <label class="field span-2">
-              <span>Заметки</span>
-              <textarea id="task-notes" placeholder="Дополнительный контекст"></textarea>
-            </label>
-          </div>
-
-          <div class="button-row">
-            <button id="add-task-button" class="button primary" type="button">Добавить задачу</button>
-            <button id="clear-task-button" class="button secondary" type="button">Очистить поля</button>
-            <button id="load-demo-button" class="button ghost" type="button">Загрузить демо</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- Right: Task List (sticky) -->
-      <section class="panel side-panel">
+    <!-- Task Form (full-width, accordion) -->
+    <section class="panel form-panel">
+      <button id="form-toggle" class="form-toggle" type="button" aria-expanded="true">
+        <span id="form-toggle-icon">▼</span>
+        <span id="form-toggle-label">Свернуть форму задачи</span>
+      </button>
+      <div id="form-body" class="form-body">
         <div class="panel-heading compact">
-          <h2>Список задач</h2>
-          <p><span id="task-count">0</span> задач.</p>
-          <p id="task-summary" class="support-copy">0 активных · 0 в архиве</p>
+          <div class="title-with-badge">
+            <h2 id="task-form-title">Добавить задачу</h2>
+            <span id="task-form-mode" class="mode-badge">Новая</span>
+          </div>
+          <p id="task-form-description">
+            Используй одну форму для создания и редактирования задач.
+          </p>
         </div>
 
-        <!-- Tabs: Active / Archive -->
-        <div class="task-tabs" role="tablist">
-          <button id="tab-active" class="task-tab active" role="tab" aria-selected="true" data-tab="active">
-            Активные <span id="tab-active-count" class="tab-count">0</span>
-          </button>
-          <button id="tab-archive" class="task-tab" role="tab" aria-selected="false" data-tab="archive">
-            Архив <span id="tab-archive-count" class="tab-count">0</span>
-          </button>
+        <div class="grid two">
+          <label class="field span-2">
+            <span>Название задачи</span>
+            <input id="task-title" type="text" placeholder="Исправить баг в форме заявки">
+          </label>
+          <label class="field">
+            <span>Проект</span>
+            <input id="task-project" type="text" placeholder="Client Beta CRM">
+          </label>
+          <label class="field">
+            <span>Клиент</span>
+            <input id="task-client" type="text" placeholder="Beta">
+          </label>
+          <label class="field span-2">
+            <span>GitHub-ссылка</span>
+            <input
+              id="task-github"
+              type="url"
+              placeholder="https://github.com/example/project"
+            >
+          </label>
+          <label class="field">
+            <span>Тип задачи</span>
+            <select id="task-type">
+              <option value="">Выбрать</option>
+              <option value="development">Разработка</option>
+              <option value="design">Дизайн</option>
+              <option value="content">Контент</option>
+              <option value="analytics">Аналитика</option>
+              <option value="management">Менеджмент</option>
+              <option value="other">Другое</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Дедлайн</span>
+            <input id="task-deadline" type="date">
+          </label>
+          <label class="field">
+            <span>Оценка в часах</span>
+            <input id="task-hours" type="number" min="0.5" max="24" step="0.5" placeholder="2.5">
+          </label>
+          <label class="field">
+            <span>Важность</span>
+            <select id="task-importance">
+              <option value="low">Низкая</option>
+              <option value="medium" selected>Средняя</option>
+              <option value="high">Высокая</option>
+              <option value="critical">Критическая</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Статус</span>
+            <select id="task-status">
+              <option value="todo">К выполнению</option>
+              <option value="in_progress">В процессе</option>
+              <option value="blocked">Заблокировано</option>
+              <option value="done">Завершено</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Зависимости</span>
+            <input id="task-dependencies" type="text" placeholder="task-001, task-002">
+          </label>
+          <label class="field span-2">
+            <span>Теги</span>
+            <input id="task-tags" type="text" placeholder="frontend, urgent, crm">
+          </label>
+          <label class="field span-2">
+            <span>Описание</span>
+            <textarea id="task-description" placeholder="Краткое содержание задачи"></textarea>
+          </label>
+          <label class="field span-2">
+            <span>Заметки</span>
+            <textarea id="task-notes" placeholder="Дополнительный контекст"></textarea>
+          </label>
         </div>
 
-        <!-- Collapsible Filters -->
-        <button id="filter-toggle" class="filter-toggle" type="button" aria-expanded="true">
-          <span id="filter-toggle-icon">▼</span>
-          <span>Фильтры и сортировка</span>
+        <div class="button-row">
+          <button id="add-task-button" class="button primary" type="button">Добавить задачу</button>
+          <button id="clear-task-button" class="button secondary" type="button">Очистить поля</button>
+          <button id="load-demo-button" class="button ghost" type="button">Загрузить демо</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Filters (full-width, collapsible) -->
+    <section class="panel filters-panel">
+      <button id="filter-toggle" class="filter-toggle" type="button" aria-expanded="true">
+        <span id="filter-toggle-icon">▼</span>
+        <span>Фильтры и сортировка</span>
+      </button>
+      <div id="filter-body" class="filter-body">
+        <div class="filter-controls">
+          <label class="field">
+            <span>Поиск</span>
+            <input id="task-search" type="search" placeholder="Название, клиент, проект, теги">
+          </label>
+          <label class="field">
+            <span>Статус</span>
+            <select id="task-status-filter">
+              <option value="all">Все</option>
+              <option value="todo">К выполнению</option>
+              <option value="in_progress">В процессе</option>
+              <option value="blocked">Заблокировано</option>
+              <option value="done">Завершено</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Проект</span>
+            <select id="task-project-filter">
+              <option value="all">Все проекты</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Сортировка</span>
+            <select id="task-sort">
+              <option value="deadline-asc">По дедлайну ↑</option>
+              <option value="deadline-desc">По дедлайну ↓</option>
+              <option value="importance-desc">По важности ↓</option>
+              <option value="importance-asc">По важности ↑</option>
+              <option value="status">По статусу</option>
+              <option value="project">По проекту</option>
+            </select>
+          </label>
+        </div>
+        <div class="filter-actions">
+          <button id="clear-filters-button" class="button ghost compact-button" type="button">Сбросить</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Task List (full-width) -->
+    <section class="panel list-panel">
+      <div class="list-heading">
+        <h2>Список задач</h2>
+        <p><span id="task-count">0</span> задач.</p>
+        <p id="task-summary" class="support-copy">0 активных · 0 в архиве</p>
+      </div>
+
+      <!-- Tabs: Active / Archive -->
+      <div class="task-tabs" role="tablist">
+        <button id="tab-active" class="task-tab active" role="tab" aria-selected="true" data-tab="active">
+          Активные <span id="tab-active-count" class="tab-count">0</span>
         </button>
-        <div id="filter-body" class="filter-panel">
-          <div class="grid two">
-            <label class="field span-2">
-              <span>Поиск</span>
-              <input id="task-search" type="search" placeholder="Название, клиент, проект, теги">
-            </label>
-            <label class="field">
-              <span>Статус</span>
-              <select id="task-status-filter">
-                <option value="all">Все</option>
-                <option value="todo">К выполнению</option>
-                <option value="in_progress">В процессе</option>
-                <option value="blocked">Заблокировано</option>
-                <option value="done">Завершено</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Проект</span>
-              <select id="task-project-filter">
-                <option value="all">Все проекты</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Сортировка</span>
-              <select id="task-sort">
-                <option value="deadline-asc">По дедлайну ↑</option>
-                <option value="deadline-desc">По дедлайну ↓</option>
-                <option value="importance-desc">По важности ↓</option>
-                <option value="importance-asc">По важности ↑</option>
-                <option value="status">По статусу</option>
-                <option value="project">По проекту</option>
-              </select>
-            </label>
-          </div>
-          <div class="filter-actions">
-            <button id="clear-filters-button" class="button ghost compact-button" type="button">Сбросить</button>
-          </div>
-        </div>
+        <button id="tab-archive" class="task-tab" role="tab" aria-selected="false" data-tab="archive">
+          Архив <span id="tab-archive-count" class="tab-count">0</span>
+        </button>
+      </div>
 
-        <div id="task-list" class="task-list"></div>
-        <div id="task-pagination" class="pagination-row"></div>
+      <div id="task-list" class="task-list"></div>
+      <div id="task-pagination" class="pagination-row"></div>
 
-        <div class="button-row sticky-actions">
-          <button id="analyze-button" class="button primary wide" type="button">Проанализировать активные задачи</button>
-        </div>
-        <div id="loading-state" class="status-note hidden">Отправляю задачи в OpenAI и собираю план...</div>
-        <div id="error-state" class="error-box hidden"></div>
-      </section>
-    </main>
+      <div class="button-row sticky-actions">
+        <button id="analyze-button" class="button primary wide" type="button">Проанализировать активные задачи</button>
+      </div>
+      <div id="loading-state" class="status-note hidden">Отправляю задачи в OpenAI и собираю план...</div>
+      <div id="error-state" class="error-box hidden"></div>
+    </section>
 
     <!-- Results Section -->
     <section id="results-section" class="results hidden">
